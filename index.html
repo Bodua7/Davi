@@ -1,0 +1,1507 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Sổ Quản Lý Thu Chi Đa Ví - AI OCR Pro</title>
+
+    <!-- PWA: Manifest & Icons -->
+    <link rel="manifest" href="./manifest.json">
+    <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/2953/2953361.png">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2953/2953361.png">
+    <meta name="theme-color" content="#312e81">
+
+    <!-- PWA: iOS support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Thu Chi Đa Ví">
+    <meta name="mobile-web-app-capable" content="yes">
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Tesseract.js cho OCR Hóa Đơn -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        /* --- RESET & BASE STYLES --- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: #f1f5f9;
+            color: #1e293b;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 480px;
+            background-color: #f8fafc;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-shadow: 0 0 25px rgba(0, 0, 0, 0.1);
+            padding-bottom: 40px;
+        }
+
+        /* --- 1. COMPACT HEADER --- */
+        .app-header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: linear-gradient(135deg, #1e1b4b, #312e81);
+            color: #ffffff;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header-brand .icon {
+            font-size: 24px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 6px;
+            border-radius: 10px;
+        }
+
+        .header-brand h1 {
+            font-size: 15px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .header-brand p {
+            font-size: 10px;
+            color: #a5b4fc;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-icon-head {
+            background: rgba(255, 255, 255, 0.12);
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-icon-head:active {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(0.95);
+        }
+
+        /* --- 2. WALLET TAB FILTER --- */
+        .filter-bar {
+            background-color: #ffffff;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid #e2e8f0;
+            position: sticky;
+            top: 60px;
+            z-index: 90;
+        }
+
+        .filter-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .filter-tabs {
+            display: flex;
+            gap: 6px;
+            width: 100%;
+        }
+
+        .tab-item {
+            flex: 1;
+            padding: 6px 0;
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #475569;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .tab-item.active {
+            background: #d97706;
+            color: #ffffff;
+            border-color: #d97706;
+            box-shadow: 0 2px 4px rgba(217, 119, 6, 0.2);
+        }
+
+        /* --- 3. MAIN CONTENT CARDS --- */
+        .main-content {
+            padding: 12px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .card {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 14px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+        }
+
+        .card-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* DASHBOARD METRICS */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .metric-box {
+            background: #ffffff;
+            border: 1px solid #f1f5f9;
+            padding: 8px 10px;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+        }
+
+        .metric-box.border-left-red { border-left: 3px solid #ef4444; }
+        .metric-box.border-left-green { border-left: 3px solid #10b981; }
+
+        .metric-title {
+            font-size: 10px;
+            color: #64748b;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .metric-num {
+            font-size: 14px;
+            font-weight: 800;
+            margin-top: 2px;
+        }
+
+        .text-red { color: #dc2626; }
+        .text-green { color: #059669; }
+
+        /* FAST INPUT TOOLS */
+        .fast-input-box {
+            background: #f0fdf4;
+            border: 1px dashed #86efac;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+
+        .fast-input-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: #166534;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-voice {
+            width: 100%;
+            background: #d97706;
+            color: white;
+            border: none;
+            padding: 8px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            cursor: pointer;
+            margin-bottom: 6px;
+            transition: background 0.2s;
+        }
+
+        .btn-voice.recording {
+            background: #dc2626;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+
+        .btn-camera-group {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 6px;
+        }
+
+        .btn-sub-fast {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+
+        /* FORM ELEMENTS */
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 8px;
+        }
+
+        .form-group label {
+            font-size: 11px;
+            color: #475569;
+            font-weight: 600;
+            display: block;
+            margin-bottom: 3px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 12px;
+            outline: none;
+            background: #ffffff;
+        }
+
+        .form-control:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+        }
+
+        .btn-toggle-group {
+            display: flex;
+            gap: 6px;
+        }
+
+        .btn-toggle {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #475569;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .btn-toggle.active-blue { background: #4f46e5; color: white; border-color: #4f46e5; }
+        .btn-toggle.active-red { background: #e11d48; color: white; border-color: #e11d48; }
+
+        .btn-submit-main {
+            width: 100%;
+            background: #4f46e5;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            margin-top: 4px;
+            box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
+        }
+
+        .btn-cancel-edit {
+            width: 100%;
+            background: #64748b;
+            color: white;
+            border: none;
+            padding: 8px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            margin-top: 6px;
+            display: none;
+        }
+
+        /* BẢNG DỮ LIỆU & FILTER */
+        .search-box {
+            position: relative;
+            margin-bottom: 8px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            margin-top: 6px;
+        }
+
+        .data-table th {
+            background: #f1f5f9;
+            color: #475569;
+            text-align: left;
+            padding: 8px 6px;
+            font-weight: 700;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .data-table td {
+            padding: 8px 6px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #334155;
+            vertical-align: middle;
+        }
+
+        .badge-wallet {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 9px;
+            font-weight: 700;
+            display: inline-block;
+        }
+
+        .badge-biz { background: #e0e7ff; color: #3730a3; }
+        .badge-per { background: #fce7f3; color: #9d174d; }
+
+        .btn-act-tbl {
+            border: none;
+            padding: 4px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-left: 2px;
+        }
+
+        .btn-edit { background: #e0f2fe; color: #0369a1; }
+        .btn-edit:hover { background: #0284c7; color: white; }
+
+        .btn-del { background: #fee2e2; color: #dc2626; }
+        .btn-del:hover { background: #ef4444; color: white; }
+
+        /* MODAL OVERLAY */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(2px);
+            display: none;
+            justify-content: center;
+            align-items: flex-end;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        .bottom-sheet {
+            background: #ffffff;
+            width: 100%;
+            max-width: 480px;
+            border-radius: 16px 16px 0 0;
+            padding: 16px;
+            animation: slideUp 0.25s cubic-bezier(0, 0, 0.2, 1);
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .sheet-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .close-btn {
+            background: #f1f5f9;
+            border: none;
+            width: 26px; height: 26px;
+            border-radius: 50%;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .setting-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            background: #f8fafc;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .btn-act {
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+        }
+
+        .ocr-loading {
+            display: none;
+            font-size: 11px;
+            color: #d97706;
+            font-weight: 700;
+            margin-top: 6px;
+            text-align: center;
+        }
+
+        /* --- CÔNG NỢ & LÃI --- */
+        .debt-summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .badge-lend { background: #dcfce7; color: #15803d; }
+        .badge-borrow { background: #ffedd5; color: #c2410c; }
+
+        .debt-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #f8fafc;
+        }
+
+        .debt-card.is-paid {
+            opacity: 0.55;
+        }
+
+        .debt-row-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .debt-name {
+            font-weight: 700;
+            font-size: 12px;
+            color: #1e293b;
+        }
+
+        .debt-line {
+            font-size: 10px;
+            color: #64748b;
+            line-height: 1.5;
+        }
+
+        .debt-total {
+            font-size: 13px;
+            font-weight: 800;
+            color: #4f46e5;
+            margin-top: 4px;
+        }
+
+        .debt-actions {
+            display: flex;
+            gap: 4px;
+            margin-top: 6px;
+        }
+
+        .btn-paid { background: #dcfce7; color: #15803d; }
+        .btn-paid:hover { background: #22c55e; color: white; }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+
+        <!-- HEADER -->
+        <header class="app-header">
+            <div class="header-brand">
+                <div class="icon">👛</div>
+                <div class="icon" onclick="openOwnerGate()" style="cursor:pointer">🔒</div>
+                <div>
+                    <h1>Sổ Thu Chi Đa Ví Pro</h1>
+                    <p>Mô Hình Algorithmic OCR 3 Lớp</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="btn-icon-head" onclick="openSettings()" title="Cài đặt">⚙️</button>
+            </div>
+        </header>
+
+        <!-- LỌC THEO VÍ -->
+        <div class="filter-bar">
+            <span class="filter-label">▼ VÍ:</span>
+            <div class="filter-tabs">
+                <button class="tab-item active" onclick="switchWallet(this, 'all')">Tất Cả</button>
+                <button class="tab-item" onclick="switchWallet(this, 'biz')">Kinh Doanh</button>
+                <button class="tab-item" onclick="switchWallet(this, 'per')">Cá Nhân</button>
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div class="main-content">
+
+            <!-- DASHBOARD METRICS -->
+            <div class="card">
+                <div class="metrics-grid">
+                    <div class="metric-box">
+                        <div class="metric-title">SỐ DƯ KHẢ DỤNG</div>
+                        <div class="metric-num text-red" id="val-balance">0 đ</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-title">LỢI NHUẬN RÒNG</div>
+                        <div class="metric-num text-red" id="val-pnl">0 đ</div>
+                    </div>
+                    <div class="metric-box border-left-green">
+                        <div class="metric-title">TỔNG THU</div>
+                        <div class="metric-num text-green" id="val-income">0 đ</div>
+                    </div>
+                    <div class="metric-box border-left-red">
+                        <div class="metric-title">TỔNG CHI</div>
+                        <div class="metric-num text-red" id="val-expense">0 đ</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FORM NHẬP / SỬA DỮ LIỆU -->
+            <div class="card" id="form-card">
+                <div class="card-title" id="form-title" style="margin-bottom: 10px;">➕ Nhập Giao Dịch</div>
+
+                <!-- TỐC HÀNH (VOICE & OCR) -->
+                <div class="fast-input-box">
+                    <div class="fast-input-title">⚡ Nhập Liệu Tốc Hành (AI Voice / OCR 3 Lớp)</div>
+                    
+                    <button type="button" class="btn-voice" id="btnVoice" onclick="toggleVoice()">
+                        🎤 Nhấn Để Nói (VD: "Chi 150k mua nguyên liệu")
+                    </button>
+
+                    <div class="btn-camera-group">
+                        <button type="button" class="btn-sub-fast" onclick="document.getElementById('fileOcr').click()">📷 Chụp/Tải Bill Scan OCR</button>
+                        <input type="file" id="fileOcr" accept="image/*" style="display: none;" onchange="processOCR(event)">
+                    </div>
+                    <div id="ocrStatus" class="ocr-loading">⏳ Đang xử lý thuật toán OCR 3 lớp... Vui lòng chờ</div>
+                </div>
+
+                <form id="txForm" onsubmit="handleSaveTx(event)">
+                    <div class="form-group">
+                        <label>Chọn Ví</label>
+                        <div class="btn-toggle-group">
+                            <button type="button" class="btn-toggle active-blue" id="btn-wallet-biz" onclick="setWallet('biz')">🏪 Kinh Doanh</button>
+                            <button type="button" class="btn-toggle" id="btn-wallet-per" onclick="setWallet('per')">👤 Cá Nhân</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Loại Giao Dịch</label>
+                        <div class="btn-toggle-group">
+                            <button type="button" class="btn-toggle" id="btn-type-in" onclick="setType('in')">Thu Khoản</button>
+                            <button type="button" class="btn-toggle active-red" id="btn-type-out" onclick="setType('out')">Chi Khoản</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Số tiền (VNĐ)</label>
+                        <input type="number" id="inp-amount" class="form-control" placeholder="Ví dụ: 250000" required>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Danh mục</label>
+                            <select id="inp-cat" class="form-control">
+                                <option>Nguyên vật liệu / Hàng hóa</option>
+                                <option>Chi phí vận hành</option>
+                                <option>Chi tiêu cá nhân</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Ngày</label>
+                            <input type="date" id="inp-date" class="form-control">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Ghi chú</label>
+                        <input type="text" id="inp-note" class="form-control" placeholder="Nhập diễn giải...">
+                    </div>
+
+                    <button type="submit" class="btn-submit-main" id="btn-submit">Lưu Giao Dịch</button>
+                    <button type="button" class="btn-cancel-edit" id="btn-cancel" onclick="cancelEdit()">Hủy Chỉnh Sửa</button>
+                </form>
+            </div>
+
+            <!-- CHART -->
+            <div class="card">
+                <div class="card-title">🍕 Cơ Cấu Chi Tiêu</div>
+                <div style="width: 180px; margin: 10px auto;">
+                    <canvas id="expenseChart"></canvas>
+                </div>
+            </div>
+
+            <!-- CÔNG NỢ & LÃI -->
+            <div class="card" id="debt-card">
+                <div class="card-title" id="debt-form-title" style="margin-bottom: 10px;">💰 Theo Dõi Công Nợ & Lãi</div>
+
+                <div class="debt-summary-grid">
+                    <div class="metric-box border-left-green">
+                        <div class="metric-title">PHẢI THU (+LÃI)</div>
+                        <div class="metric-num text-green" id="val-debt-lend">0 đ</div>
+                    </div>
+                    <div class="metric-box border-left-red">
+                        <div class="metric-title">PHẢI TRẢ (+LÃI)</div>
+                        <div class="metric-num text-red" id="val-debt-borrow">0 đ</div>
+                    </div>
+                </div>
+
+                <form id="debtForm" onsubmit="handleSaveDebt(event)">
+                    <div class="form-group">
+                        <label>Loại Công Nợ</label>
+                        <div class="btn-toggle-group">
+                            <button type="button" class="btn-toggle active-blue" id="btn-debt-lend" onclick="setDebtType('lend')">📤 Cho Vay (Thu)</button>
+                            <button type="button" class="btn-toggle" id="btn-debt-borrow" onclick="setDebtType('borrow')">📥 Đi Vay (Trả)</button>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Tên đối tượng</label>
+                            <input type="text" id="inp-debt-name" class="form-control" placeholder="VD: Anh Ba" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Số tiền gốc (VNĐ)</label>
+                            <input type="number" id="inp-debt-principal" class="form-control" placeholder="VD: 5000000" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Lãi suất (%/tháng)</label>
+                            <input type="number" step="0.01" id="inp-debt-rate" class="form-control" placeholder="VD: 2" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Ngày bắt đầu</label>
+                            <input type="date" id="inp-debt-date" class="form-control">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Ghi chú</label>
+                        <input type="text" id="inp-debt-note" class="form-control" placeholder="Nhập diễn giải...">
+                    </div>
+
+                    <button type="submit" class="btn-submit-main" id="btn-debt-submit">Lưu Công Nợ</button>
+                    <button type="button" class="btn-cancel-edit" id="btn-debt-cancel" onclick="cancelDebtEdit()">Hủy Chỉnh Sửa</button>
+                </form>
+
+                <div id="debtList" style="margin-top: 12px;"></div>
+            </div>
+
+            <!-- BẢNG LỊCH SỬ GIAO DỊCH -->
+            <div class="card">
+                <div class="card-title" style="margin-bottom: 8px;">📋 Lịch Sử Giao Dịch</div>
+                <div class="search-box">
+                    <input type="text" id="inpSearch" class="form-control" placeholder="🔍 Tìm kiếm..." oninput="renderTable()">
+                </div>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>VÍ</th>
+                            <th>SỐ TIỀN</th>
+                            <th>DANH MỤC / GHI CHÚ</th>
+                            <th style="text-align: right;">THAO TÁC</th>
+                        </tr>
+                    </thead>
+                    <tbody id="txTableBody"></tbody>
+                </table>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- MODAL SETTINGS -->
+    <div class="modal-overlay" id="settingsModal" onclick="if(event.target===this) closeSettings()">
+        <div class="bottom-sheet">
+            <div class="sheet-header">
+                <h3>⚙️ Quản Lý Dữ Liệu LocalStorage</h3>
+                <button class="close-btn" onclick="closeSettings()">✕</button>
+            </div>
+            <div class="setting-item">
+                <span>📄 Export File JSON</span>
+                <button class="btn-act" style="background:#3b82f6; color:white" onclick="exportJSON()">Tải Về</button>
+            </div>
+            <div class="setting-item">
+                <span>⚠️ Xóa Sạch Dữ Liệu</span>
+                <button class="btn-act" style="background:#ef4444; color:white" onclick="confirmReset()">Reset All</button>
+            </div>
+
+            <div class="form-group" style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:14px">
+                <label>🔒 Link app Quán Ăn (mở khi vào cổng ngầm)</label>
+                <input type="text" id="setOwnerUrl" class="form-control" placeholder="https://<user>.github.io/quanan-app/?admin=1">
+            </div>
+            <div class="form-group">
+                <label>Đổi mã mở cổng ngầm (chỉ cục bộ trên máy này)</label>
+                <input type="password" id="setOwnerGatePin" class="form-control" placeholder="Mã mới (4-6 số)" maxlength="6" inputmode="numeric">
+            </div>
+            <button type="button" class="btn-submit-main" onclick="saveOwnerGateConfig()">Lưu cấu hình cổng ngầm</button>
+        </div>
+    </div>
+
+    <!-- MODAL: CỔNG NGẦM VÀO QUẢN LÝ QUÁN ĂN -->
+    <div class="modal-overlay" id="ownerGateModal" onclick="if(event.target===this) closeOwnerGate()">
+        <div class="bottom-sheet">
+            <div class="sheet-header">
+                <h3>🔒 Khu vực riêng</h3>
+                <button class="close-btn" onclick="closeOwnerGate()">✕</button>
+            </div>
+            <div class="form-group">
+                <label>Nhập mã để tiếp tục</label>
+                <input type="password" id="ownerGatePinInput" class="form-control" placeholder="••••" maxlength="6" inputmode="numeric" autocomplete="off">
+            </div>
+            <button type="button" class="btn-submit-main" onclick="submitOwnerGate()">Tiếp tục</button>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT CODE HOÀN CHỈNH DÃ ĐƯỢC TỐI ƯU -->
+    <script>
+        const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbyXOvi3YG3jw-eCGJbxQF3NTmLcF7Ym-fnYV8Gao0tSOVDU_sUUutt42-5hNQuou6OTAQ/exec';
+        
+        // --- 1. LOCALSTORAGE & STATE INITIALIZATION ---
+        const STORAGE_KEY = 'FINANCE_APP_TRANSACTIONS_V2';
+
+        let currentWallet = 'biz';
+        let currentType = 'out';
+        let activeFilterWallet = 'all';
+        let editingId = null;
+
+        let transactions = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [
+            { id: 1, wallet: 'biz', type: 'out', amount: 99000, cat: 'Chi phí vận hành', date: '2026-07-31', note: 'Xe ôm' },
+            { id: 2, wallet: 'biz', type: 'out', amount: 196000, cat: 'Nguyên vật liệu / Hàng hóa', date: '2026-07-31', note: 'Mua bột' },
+            { id: 3, wallet: 'per', type: 'out', amount: 100000, cat: 'Chi tiêu cá nhân', date: '2026-07-31', note: 'Ăn trưa' },
+            { id: 4, wallet: 'biz', type: 'in',  amount: 500000, cat: 'Doanh thu bán hàng', date: '2026-07-31', note: 'Bán bánh' }
+        ];
+
+        document.getElementById('inp-date').value = new Date().toISOString().split('T')[0];
+
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
+            updateDashboard();
+            renderTable();
+        }
+
+        function syncToGoogleSheet(payload) {
+            if (typeof GOOGLE_SHEET_URL !== 'undefined' && GOOGLE_SHEET_URL) {
+                fetch(GOOGLE_SHEET_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }).catch(err => console.error("Lỗi đồng bộ Google Sheets:", err));
+            }
+        }
+
+        // --- 2. CHART INITIALIZATION ---
+        const ctx = document.getElementById('expenseChart').getContext('2d');
+        const expenseChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: [],
+                datasets: [{
+                    data: [],
+                    backgroundColor: ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#8b5cf6'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } },
+                cutout: '70%'
+            }
+        });
+
+        // --- 3. DASHBOARD & CHART UPDATE ---
+        function updateDashboard() {
+            let totalIncome = 0;
+            let totalExpense = 0;
+            let catStats = {};
+
+            transactions.forEach(t => {
+                if (t.type === 'in') {
+                    totalIncome += t.amount;
+                } else {
+                    totalExpense += t.amount;
+                    catStats[t.cat] = (catStats[t.cat] || 0) + t.amount;
+                }
+            });
+
+            let balance = totalIncome - totalExpense;
+
+            document.getElementById('val-income').innerText = totalIncome.toLocaleString('vi-VN') + ' đ';
+            document.getElementById('val-expense').innerText = totalExpense.toLocaleString('vi-VN') + ' đ';
+            
+            const balanceEl = document.getElementById('val-balance');
+            const pnlEl = document.getElementById('val-pnl');
+            
+            balanceEl.innerText = balance.toLocaleString('vi-VN') + ' đ';
+            pnlEl.innerText = balance.toLocaleString('vi-VN') + ' đ';
+
+            balanceEl.className = 'metric-num ' + (balance >= 0 ? 'text-green' : 'text-red');
+            pnlEl.className = 'metric-num ' + (balance >= 0 ? 'text-green' : 'text-red');
+
+            expenseChart.data.labels = Object.keys(catStats);
+            expenseChart.data.datasets[0].data = Object.values(catStats);
+            expenseChart.update();
+        }
+
+        // --- 4. RENDER TABLE & EDIT/DELETE ---
+        function renderTable() {
+            const tbody = document.getElementById('txTableBody');
+            const searchKeyword = document.getElementById('inpSearch').value.toLowerCase();
+            tbody.innerHTML = '';
+
+            const filtered = transactions.filter(t => {
+                const matchWallet = (activeFilterWallet === 'all' || t.wallet === activeFilterWallet);
+                const matchSearch = (t.note || '').toLowerCase().includes(searchKeyword) || (t.cat || '').toLowerCase().includes(searchKeyword);
+                return matchWallet && matchSearch;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#94a3b8; padding: 12px;">Không có giao dịch</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(t => {
+                const row = document.createElement('tr');
+                const badgeClass = t.wallet === 'biz' ? 'badge-biz' : 'badge-per';
+                const walletText = t.wallet === 'biz' ? 'KD' : 'CN';
+                const amountFormatted = (t.type === 'in' ? '+' : '-') + t.amount.toLocaleString('vi-VN') + ' đ';
+                const amountColor = t.type === 'in' ? 'color: #059669; font-weight:700;' : 'color: #dc2626; font-weight:700;';
+
+                row.innerHTML = `
+                    <td><span class="badge-wallet ${badgeClass}">${walletText}</span></td>
+                    <td style="${amountColor}">${amountFormatted}</td>
+                    <td>
+                        <div style="font-weight:600; font-size:11px;">${t.cat}</div>
+                        <div style="font-size:10px; color:#64748b;">${t.date} ${t.note ? '• ' + t.note : ''}</div>
+                    </td>
+                    <td style="text-align: right;">
+                        <button class="btn-act-tbl btn-edit" onclick="editTx(${t.id})">Sửa</button>
+                        <button class="btn-act-tbl btn-del" onclick="deleteTx(${t.id})">Xóa</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function editTx(id) {
+            const tx = transactions.find(t => t.id === id);
+            if (!tx) return;
+
+            editingId = id;
+            document.getElementById('inp-amount').value = tx.amount;
+            document.getElementById('inp-date').value = tx.date || new Date().toISOString().split('T')[0];
+            document.getElementById('inp-note').value = tx.note || '';
+            
+            setWallet(tx.wallet);
+            setType(tx.type);
+            document.getElementById('inp-cat').value = tx.cat;
+
+            document.getElementById('form-title').innerText = '✏️ Chỉnh Sửa Giao Dịch';
+            document.getElementById('btn-submit').innerText = 'Cập Nhật Giao Dịch';
+            document.getElementById('btn-cancel').style.display = 'block';
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function cancelEdit() {
+            editingId = null;
+            document.getElementById('inp-amount').value = '';
+            document.getElementById('inp-note').value = '';
+            document.getElementById('inp-date').value = new Date().toISOString().split('T')[0];
+            
+            document.getElementById('form-title').innerText = '➕ Nhập Giao Dịch';
+            document.getElementById('btn-submit').innerText = 'Lưu Giao Dịch';
+            document.getElementById('btn-cancel').style.display = 'none';
+        }
+
+        function deleteTx(id) {
+            if (confirm("⚠️ Bạn có chắc chắn muốn xóa giao dịch này?")) {
+                const targetTx = transactions.find(t => t.id === id);
+                transactions = transactions.filter(t => t.id !== id);
+                saveData();
+
+                // Đồng bộ lệnh xóa lên Google Sheet
+                if (targetTx) {
+                    syncToGoogleSheet({ action: 'delete', id: id });
+                }
+            }
+        }
+
+        // --- 4B. CÔNG NỢ & LÃI ---
+        const DEBT_STORAGE_KEY = 'FINANCE_APP_DEBTS_V1';
+        let currentDebtType = 'lend';
+        let editingDebtId = null;
+
+        let debts = JSON.parse(localStorage.getItem(DEBT_STORAGE_KEY)) || [];
+
+        document.getElementById('inp-debt-date').value = new Date().toISOString().split('T')[0];
+
+        function saveDebts() {
+            localStorage.setItem(DEBT_STORAGE_KEY, JSON.stringify(debts));
+            renderDebts();
+        }
+
+        function setDebtType(type) {
+            currentDebtType = type;
+            document.getElementById('btn-debt-lend').className = type === 'lend' ? 'btn-toggle active-blue' : 'btn-toggle';
+            document.getElementById('btn-debt-borrow').className = type === 'borrow' ? 'btn-toggle active-red' : 'btn-toggle';
+        }
+
+        // Tính số ngày đã trôi qua kể từ ngày bắt đầu tới ngày kết thúc (hoặc hôm nay nếu chưa trả)
+        function daysBetween(startDate, endDate) {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            const diffMs = end - start;
+            return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+        }
+
+        // Lãi đơn: gốc x lãi suất tháng x (số ngày / 30)
+        function computeDebtInterest(debt) {
+            const endDate = debt.paid ? (debt.paidDate || debt.date) : new Date().toISOString().split('T')[0];
+            const days = daysBetween(debt.date, endDate);
+            const months = days / 30;
+            const interest = debt.principal * (debt.rate / 100) * months;
+            return { days, interest: Math.round(interest) };
+        }
+
+        function handleSaveDebt(e) {
+            e.preventDefault();
+            const name = document.getElementById('inp-debt-name').value.trim();
+            const principal = parseFloat(document.getElementById('inp-debt-principal').value);
+            const rate = parseFloat(document.getElementById('inp-debt-rate').value) || 0;
+            const date = document.getElementById('inp-debt-date').value;
+            const note = document.getElementById('inp-debt-note').value;
+
+            if (!name) return alert('Nhập tên đối tượng!');
+            if (!principal || principal <= 0) return alert('Nhập số tiền gốc hợp lệ!');
+
+            let payload = {
+                type: currentDebtType,
+                name: name,
+                principal: principal,
+                rate: rate,
+                date: date,
+                note: note,
+                paid: false,
+                paidDate: null
+            };
+
+            if (editingDebtId) {
+                const index = debts.findIndex(d => d.id === editingDebtId);
+                if (index !== -1) {
+                    debts[index] = { ...debts[index], ...payload };
+                }
+                alert('Đã cập nhật công nợ!');
+            } else {
+                payload.id = Date.now();
+                debts.unshift(payload);
+                alert('Đã lưu công nợ mới!');
+            }
+
+            saveDebts();
+            cancelDebtEdit();
+        }
+
+        function editDebt(id) {
+            const debt = debts.find(d => d.id === id);
+            if (!debt) return;
+
+            editingDebtId = id;
+            document.getElementById('inp-debt-name').value = debt.name;
+            document.getElementById('inp-debt-principal').value = debt.principal;
+            document.getElementById('inp-debt-rate').value = debt.rate;
+            document.getElementById('inp-debt-date').value = debt.date;
+            document.getElementById('inp-debt-note').value = debt.note || '';
+            setDebtType(debt.type);
+
+            document.getElementById('debt-form-title').innerText = '✏️ Chỉnh Sửa Công Nợ';
+            document.getElementById('btn-debt-submit').innerText = 'Cập Nhật Công Nợ';
+            document.getElementById('btn-debt-cancel').style.display = 'block';
+
+            document.getElementById('debt-card').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function cancelDebtEdit() {
+            editingDebtId = null;
+            document.getElementById('inp-debt-name').value = '';
+            document.getElementById('inp-debt-principal').value = '';
+            document.getElementById('inp-debt-rate').value = '0';
+            document.getElementById('inp-debt-date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('inp-debt-note').value = '';
+
+            document.getElementById('debt-form-title').innerText = '💰 Theo Dõi Công Nợ & Lãi';
+            document.getElementById('btn-debt-submit').innerText = 'Lưu Công Nợ';
+            document.getElementById('btn-debt-cancel').style.display = 'none';
+        }
+
+        function markDebtPaid(id) {
+            const debt = debts.find(d => d.id === id);
+            if (!debt) return;
+            if (!confirm(`Xác nhận "${debt.name}" đã tất toán khoản này (gốc + lãi)?`)) return;
+            debt.paid = true;
+            debt.paidDate = new Date().toISOString().split('T')[0];
+            saveDebts();
+        }
+
+        function reopenDebt(id) {
+            const debt = debts.find(d => d.id === id);
+            if (!debt) return;
+            debt.paid = false;
+            debt.paidDate = null;
+            saveDebts();
+        }
+
+        function deleteDebt(id) {
+            if (confirm("⚠️ Bạn có chắc chắn muốn xóa khoản công nợ này?")) {
+                debts = debts.filter(d => d.id !== id);
+                saveDebts();
+            }
+        }
+
+        function renderDebts() {
+            const listEl = document.getElementById('debtList');
+            listEl.innerHTML = '';
+
+            let totalLend = 0;   // phải thu (gốc + lãi, chưa tất toán)
+            let totalBorrow = 0; // phải trả (gốc + lãi, chưa tất toán)
+
+            if (debts.length === 0) {
+                listEl.innerHTML = `<div style="text-align:center; color:#94a3b8; padding: 12px; font-size:11px;">Chưa có khoản công nợ nào</div>`;
+            }
+
+            // Sắp xếp: chưa trả lên trước, mới nhất lên trước
+            const sorted = [...debts].sort((a, b) => (a.paid === b.paid ? b.id - a.id : (a.paid ? 1 : -1)));
+
+            sorted.forEach(debt => {
+                const { days, interest } = computeDebtInterest(debt);
+                const total = debt.principal + interest;
+
+                if (!debt.paid) {
+                    if (debt.type === 'lend') totalLend += total;
+                    else totalBorrow += total;
+                }
+
+                const badgeClass = debt.type === 'lend' ? 'badge-lend' : 'badge-borrow';
+                const badgeText = debt.type === 'lend' ? '📤 Cho Vay' : '📥 Đi Vay';
+
+                const card = document.createElement('div');
+                card.className = 'debt-card' + (debt.paid ? ' is-paid' : '');
+                card.innerHTML = `
+                    <div class="debt-row-top">
+                        <span class="debt-name">${debt.name}</span>
+                        <span class="badge-wallet ${badgeClass}">${badgeText}${debt.paid ? ' • ĐÃ TẤT TOÁN' : ''}</span>
+                    </div>
+                    <div class="debt-line">Gốc: ${debt.principal.toLocaleString('vi-VN')} đ • Lãi suất: ${debt.rate}%/tháng</div>
+                    <div class="debt-line">Từ ngày: ${debt.date} • Số ngày tính lãi: ${days} ngày</div>
+                    <div class="debt-line">Tiền lãi phát sinh: ${interest.toLocaleString('vi-VN')} đ${debt.note ? ' • ' + debt.note : ''}</div>
+                    <div class="debt-total">Tổng ${debt.type === 'lend' ? 'phải thu' : 'phải trả'}: ${total.toLocaleString('vi-VN')} đ</div>
+                    <div class="debt-actions">
+                        ${debt.paid
+                            ? `<button class="btn-act-tbl btn-edit" onclick="reopenDebt(${debt.id})">Mở Lại</button>`
+                            : `<button class="btn-act-tbl btn-paid" onclick="markDebtPaid(${debt.id})">Đã Trả</button>`}
+                        <button class="btn-act-tbl btn-edit" onclick="editDebt(${debt.id})">Sửa</button>
+                        <button class="btn-act-tbl btn-del" onclick="deleteDebt(${debt.id})">Xóa</button>
+                    </div>
+                `;
+                listEl.appendChild(card);
+            });
+
+            document.getElementById('val-debt-lend').innerText = totalLend.toLocaleString('vi-VN') + ' đ';
+            document.getElementById('val-debt-borrow').innerText = totalBorrow.toLocaleString('vi-VN') + ' đ';
+        }
+
+        renderDebts();
+
+        // --- 5. MÔ HÌNH THUẬT TOÁN OCR 3 LỚP ---
+        function extractFinalAmount(rawText) {
+            if (!rawText) return 0;
+
+            let text = rawText;
+
+            // LỚP 1: LÀM SẠCH VĂN BẢN (NOISE REDUCTION)
+            text = text.replace(/(?:03|05|07|08|09)\d{8}\b/g, '[STT_REMOVED]');
+            text = text.replace(/\b0\d{9}\b/g, '[STT_REMOVED]');
+            text = text.replace(/#?[A-Za-z0-9]*\d[A-Za-z0-9]{5,}/g, '[CODE_REMOVED]');
+            text = text.replace(/\*+\d+/g, '[IMEI_REMOVED]');
+            text = text.replace(/\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\b/g, '[DATE_REMOVED]');
+            text = text.replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, '[TIME_REMOVED]');
+
+            // LỚP 2: NGUYÊN TẮC NEO NGỮ CẢNH
+            const primaryAnchors = [
+                /Thanh\s*toán/i,
+                /Tổng\s*(?:số\s*)?tiền/i,
+                /TỔNG\s*CỘNG/i,
+                /Khách\s*phải\s*trả/i,
+                /Cần\s*thanh\s*toán/i
+            ];
+
+            const lines = text.split('\n');
+            let candidateAmounts = [];
+
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i];
+                let moneyMatches = line.match(/\b\d{1,3}(?:[.,]\d{3})+(?:\s*đ|\s*VND)?\b|\b\d{4,9}\b/gi);
+
+                if (moneyMatches) {
+                    moneyMatches.forEach(matchStr => {
+                        let numVal = parseInt(matchStr.replace(/[^0-9]/g, ''), 10);
+
+                        if (numVal >= 1000 && numVal <= 500000000) {
+                            let weight = 1;
+
+                            primaryAnchors.forEach(anchor => {
+                                if (anchor.test(line)) weight += 10;
+                            });
+
+                            if (i > 0) {
+                                primaryAnchors.forEach(anchor => {
+                                    if (anchor.test(lines[i - 1])) weight += 5;
+                                });
+                            }
+
+                            if (/Giảm\s*giá/i.test(line) || /-\s*\d/.test(line)) weight -= 4;
+                            if (/Giá\s*gốc/i.test(line) || /Giá\s*niêm\s*yết/i.test(line)) weight -= 5;
+                            if (/Tổng\s*tiền\s*hàng/i.test(line)) weight += 2;
+
+                            candidateAmounts.push({
+                                val: numVal,
+                                weight: weight,
+                                lineIndex: i
+                            });
+                        }
+                    });
+                }
+            }
+
+            // LỚP 3: LỌC DỮ LIỆU & QUYẾT ĐỊNH
+            if (candidateAmounts.length === 0) return 0;
+
+            candidateAmounts.sort((a, b) => {
+                if (b.weight !== a.weight) {
+                    return b.weight - a.weight;
+                }
+                return b.lineIndex - a.lineIndex;
+            });
+
+            return candidateAmounts[0].val;
+        }
+
+        async function processOCR(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const statusEl = document.getElementById('ocrStatus');
+            statusEl.style.display = 'block';
+
+            let worker = null;
+            try {
+                worker = await Tesseract.createWorker('vie');
+                const ret = await worker.recognize(file);
+                const finalAmount = extractFinalAmount(ret.data.text);
+
+                if (finalAmount > 0) {
+                    document.getElementById('inp-amount').value = finalAmount;
+                    document.getElementById('inp-note').value = "Scan Bill OCR";
+                    alert(`📷 OCR thành công!\nĐã trích xuất số tiền: ${finalAmount.toLocaleString('vi-VN')} đ`);
+                } else {
+                    alert("Đã đọc xong ảnh nhưng không xác định được số tiền thanh toán hợp lệ.");
+                }
+            } catch (err) {
+                alert("Lỗi khi xử lý hình ảnh OCR!");
+            } finally {
+                statusEl.style.display = 'none';
+                if (worker) await worker.terminate(); // Tối ưu RAM
+                event.target.value = ''; // Reset input file
+            }
+        }
+
+        // --- 6. VOICE API (WEB SPEECH API) ---
+        let recognition;
+        let isRecording = false;
+
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.lang = 'vi-VN';
+            recognition.continuous = false;
+
+            recognition.onresult = function(event) {
+                const text = event.results[0][0].transcript;
+                document.getElementById('btnVoice').classList.remove('recording');
+                document.getElementById('btnVoice').innerText = '🎤 Nhấn Để Nói (VD: "Chi 150k mua nguyên liệu")';
+                isRecording = false;
+                parseVoiceText(text);
+            };
+
+            recognition.onerror = function() {
+                alert("Lỗi nhận diện giọng nói hoặc chưa cấp quyền Micro!");
+                document.getElementById('btnVoice').classList.remove('recording');
+                isRecording = false;
+            };
+        }
+
+        function toggleVoice() {
+            if (!recognition) {
+                alert("Trình duyệt của bạn không hỗ trợ Voice API!");
+                return;
+            }
+            if (!isRecording) {
+                recognition.start();
+                isRecording = true;
+                document.getElementById('btnVoice').classList.add('recording');
+                document.getElementById('btnVoice').innerText = '🔴 Đang lắng nghe... Hãy nói ngay';
+            } else {
+                recognition.stop();
+                isRecording = false;
+                document.getElementById('btnVoice').classList.remove('recording');
+            }
+        }
+
+        function parseVoiceText(text) {
+            let lower = text.toLowerCase();
+            
+            if (lower.includes('thu') || lower.includes('bán')) setType('in');
+            else setType('out');
+
+            if (lower.includes('cá nhân')) setWallet('per');
+            else setWallet('biz');
+
+            let amount = 0;
+            let matchK = lower.match(/(\d+)\s*(k|nghìn|ngàn)/);
+            let matchTrieu = lower.match(/(\d+)\s*(triệu|tr)/);
+            let matchNum = lower.match(/(\d+)/);
+
+            if (matchK) amount = parseInt(matchK[1]) * 1000;
+            else if (matchTrieu) amount = parseInt(matchTrieu[1]) * 1000000;
+            else if (matchNum) amount = parseInt(matchNum[1]);
+
+            if (amount > 0) document.getElementById('inp-amount').value = amount;
+            document.getElementById('inp-note').value = text;
+        }
+
+        // --- 7. FORM & CONTROLS ---
+        function setWallet(type) {
+            const isSwitching = (currentWallet !== type);
+            currentWallet = type;
+            document.getElementById('btn-wallet-biz').className = type === 'biz' ? 'btn-toggle active-blue' : 'btn-toggle';
+            document.getElementById('btn-wallet-per').className = type === 'per' ? 'btn-toggle active-blue' : 'btn-toggle';
+
+            // Tự động xóa số tiền/ghi chú đã nhập khi chuyển sang ví khác (không áp dụng khi đang sửa giao dịch cũ)
+            if (isSwitching && !editingId) {
+                document.getElementById('inp-amount').value = '';
+                document.getElementById('inp-note').value = '';
+            }
+        }
+
+        function setType(type) {
+            currentType = type;
+            document.getElementById('btn-type-in').className = type === 'in' ? 'btn-toggle active-blue' : 'btn-toggle';
+            document.getElementById('btn-type-out').className = type === 'out' ? 'btn-toggle active-red' : 'btn-toggle';
+
+            const catSelect = document.getElementById('inp-cat');
+            if (type === 'in') {
+                catSelect.innerHTML = `<option>Doanh thu bán hàng</option><option>Thu nhập khác</option><option>Thu hồi nợ</option>`;
+            } else {
+                catSelect.innerHTML = `<option>Nguyên vật liệu / Hàng hóa</option><option>Chi phí vận hành</option><option>Chi tiêu cá nhân</option>`;
+            }
+        }
+
+        function handleSaveTx(e) {
+            e.preventDefault();
+            const amount = parseFloat(document.getElementById('inp-amount').value);
+            const cat = document.getElementById('inp-cat').value;
+            const date = document.getElementById('inp-date').value;
+            const note = document.getElementById('inp-note').value;
+
+            if (!amount || amount <= 0) return alert('Nhập số tiền hợp lệ!');
+
+            let payload = {
+                wallet: currentWallet,
+                type: currentType,
+                amount: amount,
+                cat: cat,
+                date: date,
+                note: note
+            };
+
+            if (editingId) {
+                const index = transactions.findIndex(t => t.id === editingId);
+                if (index !== -1) {
+                    transactions[index] = { ...transactions[index], ...payload };
+                    payload.id = editingId;
+                    payload.action = 'update';
+                }
+                alert('Đã cập nhật giao dịch!');
+            } else {
+                payload.id = Date.now();
+                payload.action = 'create';
+                transactions.unshift(payload);
+                alert('Đã lưu giao dịch mới!');
+            }
+
+            saveData();
+            syncToGoogleSheet(payload);
+            cancelEdit();
+        }
+
+        function switchWallet(btn, walletType) {
+            document.querySelectorAll('.tab-item').forEach(el => el.classList.remove('active'));
+            btn.classList.add('active');
+            activeFilterWallet = walletType;
+
+            // Tự động xóa từ khóa tìm kiếm khi mở/chuyển sang ví khác
+            document.getElementById('inpSearch').value = '';
+
+            renderTable();
+        }
+
+        function openSettings() {
+            document.getElementById('setOwnerUrl').value = localStorage.getItem('OWNER_GATE_URL') || '';
+            document.getElementById('settingsModal').classList.add('active');
+        }
+        function closeSettings() { document.getElementById('settingsModal').classList.remove('active'); }
+
+        /* ---- CỔNG NGẦM VÀO QUẢN LÝ QUÁN ĂN ---- */
+        function saveOwnerGateConfig() {
+            const url = document.getElementById('setOwnerUrl').value.trim();
+            const newPin = document.getElementById('setOwnerGatePin').value.trim();
+            if (url) localStorage.setItem('OWNER_GATE_URL', url);
+            if (newPin) {
+                if (newPin.length < 4) { alert('Mã phải từ 4 số trở lên!'); return; }
+                localStorage.setItem('OWNER_GATE_PIN', newPin);
+            }
+            document.getElementById('setOwnerGatePin').value = '';
+            alert('Đã lưu cấu hình cổng ngầm!');
+            closeSettings();
+        }
+        function openOwnerGate() {
+            document.getElementById('ownerGatePinInput').value = '';
+            document.getElementById('ownerGateModal').classList.add('active');
+        }
+        function closeOwnerGate() { document.getElementById('ownerGateModal').classList.remove('active'); }
+        function submitOwnerGate() {
+            const pin = document.getElementById('ownerGatePinInput').value.trim();
+            const savedPin = localStorage.getItem('OWNER_GATE_PIN') || '1234';
+            if (pin !== savedPin) { alert('Sai mã!'); return; }
+            const url = localStorage.getItem('OWNER_GATE_URL');
+            if (!url) {
+                alert('Chưa cấu hình link quản lý quán ăn. Vào ⚙️ Cài đặt để dán link trước.');
+                closeOwnerGate();
+                openSettings();
+                return;
+            }
+            closeOwnerGate();
+            window.location.href = url;
+        }
+
+        function exportJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(transactions));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `ThuChi_Backup_${new Date().toISOString().split('T')[0]}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function confirmReset() {
+            if (confirm("⚠️ Xóa toàn bộ dữ liệu lưu trên máy này?")) {
+                localStorage.removeItem(STORAGE_KEY);
+                transactions = [];
+                saveData();
+                closeSettings();
+            }
+        }
+
+        // Khởi chạy ban đầu
+        saveData();
+
+        // --- 8. ĐĂNG KÝ SERVICE WORKER (PWA - CÀI ĐẶT & CHẠY OFFLINE) ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Service Worker đã đăng ký:', reg.scope))
+                    .catch(err => console.error('Lỗi đăng ký Service Worker:', err));
+            });
+        }
+
+        // Gợi ý cài đặt app (Add to Home Screen) trên Android/Chrome
+        let deferredInstallPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredInstallPrompt = e;
+        });
+    </script>
+</body>
+</html>
