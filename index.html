@@ -139,11 +139,12 @@
             display: flex;
             gap: 6px;
             width: 100%;
+            flex-wrap: wrap;
         }
 
         .tab-item {
-            flex: 1;
-            padding: 6px 0;
+            flex: 0 0 auto;
+            padding: 6px 12px;
             border: 1px solid #cbd5e1;
             background: #f8fafc;
             border-radius: 6px;
@@ -161,6 +162,18 @@
             border-color: #d97706;
             box-shadow: 0 2px 4px rgba(217, 119, 6, 0.2);
         }
+
+        .wallet-manage-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 8px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .wallet-manage-row:last-child { border-bottom: none; }
+        .wallet-manage-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+        .wallet-manage-name { font-size: 13px; font-weight: 600; color: #1e293b; }
 
         /* --- 3. MAIN CONTENT CARDS --- */
         .main-content {
@@ -328,7 +341,10 @@
         .btn-toggle-group {
             display: flex;
             gap: 6px;
+            flex-wrap: wrap;
         }
+
+        .btn-toggle-group .btn-toggle { flex: 1 1 auto; min-width: 90px; }
 
         .btn-toggle {
             flex: 1;
@@ -593,11 +609,7 @@
         <!-- LỌC THEO VÍ -->
         <div class="filter-bar">
             <span class="filter-label">▼ VÍ:</span>
-            <div class="filter-tabs">
-                <button class="tab-item active" onclick="switchWallet(this, 'all')">Tất Cả</button>
-                <button class="tab-item" onclick="switchWallet(this, 'biz')">Kinh Doanh</button>
-                <button class="tab-item" onclick="switchWallet(this, 'per')">Cá Nhân</button>
-            </div>
+            <div class="filter-tabs" id="walletFilterTabs"></div>
         </div>
 
         <!-- MAIN CONTENT -->
@@ -647,10 +659,7 @@
                 <form id="txForm" onsubmit="handleSaveTx(event)">
                     <div class="form-group">
                         <label>Chọn Ví</label>
-                        <div class="btn-toggle-group">
-                            <button type="button" class="btn-toggle active-blue" id="btn-wallet-biz" onclick="setWallet('biz')">🏪 Kinh Doanh</button>
-                            <button type="button" class="btn-toggle" id="btn-wallet-per" onclick="setWallet('per')">👤 Cá Nhân</button>
-                        </div>
+                        <div class="btn-toggle-group" id="walletToggleGroup"></div>
                     </div>
 
                     <div class="form-group">
@@ -798,6 +807,39 @@
             </div>
 
             <div class="form-group" style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:14px">
+                <label>🗂️ Quản Lý Ví (tạo/đổi tên/xóa ví)</label>
+                <div id="walletManageList"></div>
+                <div class="form-row" style="margin-top:8px">
+                    <input type="text" id="inpNewWalletName" class="form-control" placeholder="Tên ví mới, VD: Quán Ăn">
+                    <button type="button" class="btn-act" style="background:#10b981;color:white;white-space:nowrap" onclick="addWallet()">+ Thêm ví</button>
+                </div>
+                <p style="font-size:10px;color:#94a3b8;margin-top:4px">Ví đã có giao dịch sẽ không xóa được - hãy sửa/xóa hết giao dịch của ví đó trước, hoặc đổi tên thay vì xóa.</p>
+            </div>
+
+            <div class="form-group" style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:14px">
+                <label>🗓️ Xóa giao dịch theo tháng/năm</label>
+                <div class="form-row">
+                    <div class="form-group" style="flex:1">
+                        <label style="font-size:10px">Tháng (để trống = cả năm)</label>
+                        <select id="delMonth" class="form-control">
+                            <option value="">Cả năm</option>
+                            <option value="01">Tháng 1</option><option value="02">Tháng 2</option>
+                            <option value="03">Tháng 3</option><option value="04">Tháng 4</option>
+                            <option value="05">Tháng 5</option><option value="06">Tháng 6</option>
+                            <option value="07">Tháng 7</option><option value="08">Tháng 8</option>
+                            <option value="09">Tháng 9</option><option value="10">Tháng 10</option>
+                            <option value="11">Tháng 11</option><option value="12">Tháng 12</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex:1">
+                        <label style="font-size:10px">Năm</label>
+                        <input type="number" id="delYear" class="form-control" placeholder="VD: 2026">
+                    </div>
+                </div>
+                <button type="button" class="btn-act" style="background:#ef4444;color:white;width:100%;margin-top:6px" onclick="deleteByMonthYear()">🗑️ Xóa giao dịch trong khoảng này</button>
+            </div>
+
+            <div class="form-group" style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:14px">
                 <label>🔒 Link app Quán Ăn (mở khi vào cổng ngầm)</label>
                 <input type="text" id="setOwnerUrl" class="form-control" placeholder="https://<user>.github.io/quanan-app/?admin=1">
             </div>
@@ -831,9 +873,30 @@
         // --- 1. LOCALSTORAGE & STATE INITIALIZATION ---
         const STORAGE_KEY = 'FINANCE_APP_TRANSACTIONS_V2';
 
-        let currentWallet = 'biz';
+        // --- 1B. WALLETS (DANH SÁCH VÍ - CÓ THỂ THÊM/SỬA/XÓA) ---
+        const WALLETS_KEY = 'FINANCE_APP_WALLETS_V1';
+        const WALLET_COLOR_PALETTE = [
+            { bg: '#e0e7ff', fg: '#3730a3' }, // tím (mặc định Kinh Doanh)
+            { bg: '#fce7f3', fg: '#9d174d' }, // hồng (mặc định Cá Nhân)
+            { bg: '#ffedd5', fg: '#9a3412' }, // cam (mặc định Quán Ăn)
+            { bg: '#dcfce7', fg: '#166534' },
+            { bg: '#dbeafe', fg: '#1e40af' },
+            { bg: '#fef9c3', fg: '#854d0e' },
+            { bg: '#e2e8f0', fg: '#334155' }
+        ];
+        const DEFAULT_WALLETS = [
+            { id: 'biz', name: 'Kinh Doanh', icon: '🏪', color: WALLET_COLOR_PALETTE[0] },
+            { id: 'per', name: 'Cá Nhân', icon: '👤', color: WALLET_COLOR_PALETTE[1] },
+            { id: 'quanan', name: 'Quán Ăn', icon: '🍜', color: WALLET_COLOR_PALETTE[2] }
+        ];
+        let wallets = JSON.parse(localStorage.getItem(WALLETS_KEY)) || DEFAULT_WALLETS;
+        function saveWallets() { localStorage.setItem(WALLETS_KEY, JSON.stringify(wallets)); }
+        function getWallet(id) { return wallets.find(w => w.id === id); }
+
+        let currentWallet = wallets[0].id;
         let currentType = 'out';
-        let activeFilterWallet = 'all';
+        // Bộ lọc theo ví giờ cho chọn nhiều ví cùng lúc (mặc định chọn hết = tương đương "Tất Cả")
+        let activeFilterWallets = new Set(wallets.map(w => w.id));
         let editingId = null;
 
         let transactions = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [
@@ -887,6 +950,7 @@
             let catStats = {};
 
             transactions.forEach(t => {
+                if (!activeFilterWallets.has(t.wallet)) return;
                 if (t.type === 'in') {
                     totalIncome += t.amount;
                 } else {
@@ -921,7 +985,7 @@
             tbody.innerHTML = '';
 
             const filtered = transactions.filter(t => {
-                const matchWallet = (activeFilterWallet === 'all' || t.wallet === activeFilterWallet);
+                const matchWallet = activeFilterWallets.has(t.wallet);
                 const matchSearch = (t.note || '').toLowerCase().includes(searchKeyword) || (t.cat || '').toLowerCase().includes(searchKeyword);
                 return matchWallet && matchSearch;
             });
@@ -933,13 +997,14 @@
 
             filtered.forEach(t => {
                 const row = document.createElement('tr');
-                const badgeClass = t.wallet === 'biz' ? 'badge-biz' : 'badge-per';
-                const walletText = t.wallet === 'biz' ? 'KD' : 'CN';
+                const w = getWallet(t.wallet);
+                const color = (w && w.color) || WALLET_COLOR_PALETTE[WALLET_COLOR_PALETTE.length - 1];
+                const walletText = w ? (w.icon ? w.icon : '') + ' ' + w.name : '(đã xóa)';
                 const amountFormatted = (t.type === 'in' ? '+' : '-') + t.amount.toLocaleString('vi-VN') + ' đ';
                 const amountColor = t.type === 'in' ? 'color: #059669; font-weight:700;' : 'color: #dc2626; font-weight:700;';
 
                 row.innerHTML = `
-                    <td><span class="badge-wallet ${badgeClass}">${walletText}</span></td>
+                    <td><span class="badge-wallet" style="background:${color.bg};color:${color.fg}">${walletText}</span></td>
                     <td style="${amountColor}">${amountFormatted}</td>
                     <td>
                         <div style="font-weight:600; font-size:11px;">${t.cat}</div>
@@ -1334,7 +1399,8 @@
             if (lower.includes('thu') || lower.includes('bán')) setType('in');
             else setType('out');
 
-            if (lower.includes('cá nhân')) setWallet('per');
+            if (lower.includes('quán') && getWallet('quanan')) setWallet('quanan');
+            else if (lower.includes('cá nhân')) setWallet('per');
             else setWallet('biz');
 
             let amount = 0;
@@ -1351,17 +1417,135 @@
         }
 
         // --- 7. FORM & CONTROLS ---
-        function setWallet(type) {
-            const isSwitching = (currentWallet !== type);
-            currentWallet = type;
-            document.getElementById('btn-wallet-biz').className = type === 'biz' ? 'btn-toggle active-blue' : 'btn-toggle';
-            document.getElementById('btn-wallet-per').className = type === 'per' ? 'btn-toggle active-blue' : 'btn-toggle';
+        function setWallet(id) {
+            const isSwitching = (currentWallet !== id);
+            currentWallet = id;
+            document.querySelectorAll('#walletToggleGroup .btn-toggle').forEach(btn => {
+                btn.className = btn.dataset.walletId === id ? 'btn-toggle active-blue' : 'btn-toggle';
+            });
 
             // Tự động xóa số tiền/ghi chú đã nhập khi chuyển sang ví khác (không áp dụng khi đang sửa giao dịch cũ)
             if (isSwitching && !editingId) {
                 document.getElementById('inp-amount').value = '';
                 document.getElementById('inp-note').value = '';
             }
+        }
+
+        function renderWalletToggleButtons() {
+            const group = document.getElementById('walletToggleGroup');
+            group.innerHTML = wallets.map(w => `
+                <button type="button" class="btn-toggle${w.id === currentWallet ? ' active-blue' : ''}" data-wallet-id="${w.id}" onclick="setWallet('${w.id}')">${w.icon || ''} ${w.name}</button>
+            `).join('');
+        }
+
+        function renderWalletFilterChips() {
+            const box = document.getElementById('walletFilterTabs');
+            const allSelected = wallets.every(w => activeFilterWallets.has(w.id)) && wallets.length > 0;
+            let html = `<button class="tab-item${allSelected ? ' active' : ''}" onclick="toggleAllWalletFilter()">☑️ Tất Cả</button>`;
+            html += wallets.map(w => `
+                <button class="tab-item${activeFilterWallets.has(w.id) ? ' active' : ''}" onclick="toggleWalletFilter('${w.id}')">${w.icon || ''} ${w.name}</button>
+            `).join('');
+            box.innerHTML = html;
+        }
+
+        function toggleWalletFilter(id) {
+            if (activeFilterWallets.has(id)) {
+                // Không cho bỏ chọn ví cuối cùng - luôn phải còn ít nhất 1 ví được chọn
+                if (activeFilterWallets.size > 1) activeFilterWallets.delete(id);
+            } else {
+                activeFilterWallets.add(id);
+            }
+            renderWalletFilterChips();
+            updateDashboard();
+            renderTable();
+        }
+
+        function toggleAllWalletFilter() {
+            const allSelected = wallets.every(w => activeFilterWallets.has(w.id));
+            activeFilterWallets = new Set(allSelected ? [wallets[0].id] : wallets.map(w => w.id));
+            renderWalletFilterChips();
+            updateDashboard();
+            renderTable();
+        }
+
+        /* ---- QUẢN LÝ VÍ: THÊM / ĐỔI TÊN / XÓA ---- */
+        function renderWalletManageList() {
+            const box = document.getElementById('walletManageList');
+            box.innerHTML = wallets.map(w => `
+                <div class="wallet-manage-row">
+                    <span class="wallet-manage-name">${w.icon || '💰'} ${w.name}</span>
+                    <div class="wallet-manage-actions">
+                        <button type="button" class="btn-act-tbl btn-edit" onclick="renameWallet('${w.id}')">Đổi tên</button>
+                        <button type="button" class="btn-act-tbl btn-del" onclick="deleteWallet('${w.id}')">Xóa</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function addWallet() {
+            const nameInput = document.getElementById('inpNewWalletName');
+            const name = nameInput.value.trim();
+            if (!name) { alert('Nhập tên ví trước đã!'); return; }
+            const id = 'w_' + Date.now();
+            const color = WALLET_COLOR_PALETTE[wallets.length % WALLET_COLOR_PALETTE.length];
+            wallets.push({ id, name, icon: '💰', color });
+            saveWallets();
+            nameInput.value = '';
+            activeFilterWallets.add(id);
+            refreshAllWalletUI();
+            alert('Đã thêm ví "' + name + '"!');
+        }
+
+        function renameWallet(id) {
+            const w = getWallet(id);
+            if (!w) return;
+            const newName = prompt('Đổi tên ví:', w.name);
+            if (newName === null) return;
+            const trimmed = newName.trim();
+            if (!trimmed) { alert('Tên ví không được để trống!'); return; }
+            w.name = trimmed;
+            saveWallets();
+            refreshAllWalletUI();
+        }
+
+        function deleteWallet(id) {
+            const w = getWallet(id);
+            if (!w) return;
+            if (wallets.length <= 1) { alert('Phải còn ít nhất 1 ví!'); return; }
+            const hasTx = transactions.some(t => t.wallet === id);
+            if (hasTx) { alert('Ví "' + w.name + '" vẫn còn giao dịch, không xóa được. Hãy xóa/chuyển hết giao dịch của ví này trước.'); return; }
+            if (!confirm('Xóa ví "' + w.name + '"? Thao tác này không xóa được nếu vẫn còn giao dịch.')) return;
+            wallets = wallets.filter(x => x.id !== id);
+            activeFilterWallets.delete(id);
+            if (activeFilterWallets.size === 0) activeFilterWallets.add(wallets[0].id);
+            if (currentWallet === id) currentWallet = wallets[0].id;
+            saveWallets();
+            refreshAllWalletUI();
+        }
+
+        function refreshAllWalletUI() {
+            renderWalletFilterChips();
+            renderWalletToggleButtons();
+            renderWalletManageList();
+            updateDashboard();
+            renderTable();
+        }
+
+        /* ---- XÓA GIAO DỊCH THEO THÁNG / NĂM ---- */
+        function deleteByMonthYear() {
+            const month = document.getElementById('delMonth').value; // '' hoặc '01'..'12'
+            const year = document.getElementById('delYear').value.trim();
+            if (!year) { alert('Vui lòng nhập năm!'); return; }
+            const prefix = month ? (year + '-' + month) : year + '-';
+            const label = month ? ('tháng ' + parseInt(month, 10) + '/' + year) : ('cả năm ' + year);
+            const toDelete = transactions.filter(t => (t.date || '').startsWith(prefix));
+            if (toDelete.length === 0) { alert('Không có giao dịch nào trong ' + label + '.'); return; }
+            if (!confirm('Xóa toàn bộ ' + toDelete.length + ' giao dịch trong ' + label + '? Không thể hoàn tác.')) return;
+            const idsToDelete = new Set(toDelete.map(t => t.id));
+            transactions = transactions.filter(t => !idsToDelete.has(t.id));
+            saveData();
+            toDelete.forEach(t => syncToGoogleSheet({ action: 'delete', id: t.id }));
+            alert('Đã xóa ' + toDelete.length + ' giao dịch trong ' + label + '!');
         }
 
         function setType(type) {
@@ -1415,19 +1599,13 @@
             cancelEdit();
         }
 
-        function switchWallet(btn, walletType) {
-            document.querySelectorAll('.tab-item').forEach(el => el.classList.remove('active'));
-            btn.classList.add('active');
-            activeFilterWallet = walletType;
-
-            // Tự động xóa từ khóa tìm kiếm khi mở/chuyển sang ví khác
-            document.getElementById('inpSearch').value = '';
-
-            renderTable();
-        }
+        // Link mặc định sang app Quản Lý Quán Ăn - dùng khi chưa cấu hình gì trong Cài đặt.
+        // Vẫn có thể đổi/ghi đè bất kỳ lúc nào ở ⚙️ Cài đặt (giá trị đổi sẽ lưu vào localStorage, ưu tiên hơn mặc định này).
+        const DEFAULT_OWNER_GATE_URL = 'https://bodua7.github.io/quanan/?admin=1';
 
         function openSettings() {
-            document.getElementById('setOwnerUrl').value = localStorage.getItem('OWNER_GATE_URL') || '';
+            document.getElementById('setOwnerUrl').value = localStorage.getItem('OWNER_GATE_URL') || DEFAULT_OWNER_GATE_URL;
+            renderWalletManageList();
             document.getElementById('settingsModal').classList.add('active');
         }
         function closeSettings() { document.getElementById('settingsModal').classList.remove('active'); }
@@ -1454,7 +1632,7 @@
             const pin = document.getElementById('ownerGatePinInput').value.trim();
             const savedPin = localStorage.getItem('OWNER_GATE_PIN') || '1234';
             if (pin !== savedPin) { alert('Sai mã!'); return; }
-            const url = localStorage.getItem('OWNER_GATE_URL');
+            const url = localStorage.getItem('OWNER_GATE_URL') || DEFAULT_OWNER_GATE_URL;
             if (!url) {
                 alert('Chưa cấu hình link quản lý quán ăn. Vào ⚙️ Cài đặt để dán link trước.');
                 closeOwnerGate();
@@ -1485,6 +1663,9 @@
         }
 
         // Khởi chạy ban đầu
+        renderWalletFilterChips();
+        renderWalletToggleButtons();
+        renderWalletManageList();
         saveData();
 
         // --- 8. ĐĂNG KÝ SERVICE WORKER (PWA - CÀI ĐẶT & CHẠY OFFLINE) ---
