@@ -868,7 +868,7 @@
 
     <!-- JAVASCRIPT CODE HOÀN CHỈNH DÃ ĐƯỢC TỐI ƯU -->
     <script>
-        const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbyXOvi3YG3jw-eCGJbxQF3NTmLcF7Ym-fnYV8Gao0tSOVDU_sUUutt42-5hNQuou6OTAQ/exec';
+        const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxbUg5Z8Kc9NgXaIqFWcJvqMoVDsRoJE3JwlxSeOtRMMiXaIhzlSrhMhlpu6rlXS0CS/exec';
         
         // --- 1. LOCALSTORAGE & STATE INITIALIZATION ---
         const STORAGE_KEY = 'FINANCE_APP_TRANSACTIONS_V2';
@@ -1669,7 +1669,24 @@
         saveData();
 
         // --- 8. ĐĂNG KÝ SERVICE WORKER (PWA - CÀI ĐẶT & CHẠY OFFLINE) ---
-        if ('serviceWorker' in navigator) {
+        // Mở link kèm ?resetcache=1 để ép xóa sạch service worker + cache cũ,
+        // dùng khi trình duyệt (đặc biệt Herond) không tự cập nhật bản mới.
+        if (location.search.indexOf('resetcache=1') !== -1) {
+            (async () => {
+                try {
+                    if ('serviceWorker' in navigator) {
+                        const regs = await navigator.serviceWorker.getRegistrations();
+                        for (const r of regs) await r.unregister();
+                    }
+                    if ('caches' in window) {
+                        const names = await caches.keys();
+                        for (const n of names) await caches.delete(n);
+                    }
+                } catch (err) { console.error('Reset cache lỗi:', err); }
+                alert('Đã xóa cache & service worker cũ. Bấm OK để tải lại bản mới nhất.');
+                location.href = location.pathname;
+            })();
+        } else if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
                     .then(reg => console.log('Service Worker đã đăng ký:', reg.scope))
