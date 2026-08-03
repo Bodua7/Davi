@@ -21,6 +21,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Tesseract.js cho OCR Hóa Đơn -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <!-- Supabase JS (đồng bộ dữ liệu, thay cho localStorage/Google Sheet) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         /* --- RESET & BASE STYLES --- */
         * {
@@ -589,6 +591,12 @@
 </head>
 <body>
 
+    <!-- Overlay hiện khi đang tải dữ liệu từ Supabase lúc mở app -->
+    <div id="loadingOverlay" style="position:fixed;inset:0;background:#f1f5f9;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;font-size:14px;color:#334155">
+        <div style="font-size:32px">👛</div>
+        <div>Đang tải dữ liệu...</div>
+    </div>
+
     <div class="app-container">
 
         <!-- HEADER -->
@@ -868,13 +876,16 @@
 
     <!-- JAVASCRIPT CODE HOÀN CHỈNH DÃ ĐƯỢC TỐI ƯU -->
     <script>
-        const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxbUg5Z8Kc9NgXaIqFWcJvqMoVDsRoJE3JwlxSeOtRMMiXaIhzlSrhMhlpu6rlXS0CS/exec';
-        
-        // --- 1. LOCALSTORAGE & STATE INITIALIZATION ---
-        const STORAGE_KEY = 'FINANCE_APP_TRANSACTIONS_V2';
+        /* ================= CẤU HÌNH SUPABASE (dùng chung project với app Quán Ăn) ================= */
+        const SUPABASE_URL = "https://cwjuvxktediyfjyazakm.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3anV2eGt0ZWRpeWZqeWF6YWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzNzUxMDUsImV4cCI6MjA5OTk1MTEwNX0.feFpJYJgPy2zvLM990XO9iwMfXeeZ_umv3L1WXz1JVQ";
+        const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // Sinh ID duy nhất (dùng cho giao dịch/công nợ), tránh trùng khi 2 máy cùng lưu gần như cùng lúc
+        function genId(){ return Date.now() * 1000 + Math.floor(Math.random() * 1000); }
+
+        // --- 1. STATE INITIALIZATION (dữ liệu lấy từ Supabase, không còn dùng localStorage) ---
 
         // --- 1B. WALLETS (DANH SÁCH VÍ - CÓ THỂ THÊM/SỬA/XÓA) ---
-        const WALLETS_KEY = 'FINANCE_APP_WALLETS_V1';
         const WALLET_COLOR_PALETTE = [
             { bg: '#e0e7ff', fg: '#3730a3' }, // tím (mặc định Kinh Doanh)
             { bg: '#fce7f3', fg: '#9d174d' }, // hồng (mặc định Cá Nhân)
@@ -889,40 +900,24 @@
             { id: 'per', name: 'Cá Nhân', icon: '👤', color: WALLET_COLOR_PALETTE[1] },
             { id: 'quanan', name: 'Quán Ăn', icon: '🍜', color: WALLET_COLOR_PALETTE[2] }
         ];
-        let wallets = JSON.parse(localStorage.getItem(WALLETS_KEY)) || DEFAULT_WALLETS;
-        function saveWallets() { localStorage.setItem(WALLETS_KEY, JSON.stringify(wallets)); }
+        // Danh sách thật lấy từ Supabase lúc khởi động (initApp) - để rỗng ban đầu, tránh hiện dữ liệu demo cũ
+        let wallets = [];
         function getWallet(id) { return wallets.find(w => w.id === id); }
+        function walletRowToObj(r){ return { id: r.id, name: r.name, icon: r.icon, color: { bg: r.colorBg, fg: r.colorFg } }; }
 
-        let currentWallet = wallets[0].id;
+        let currentWallet = null;
         let currentType = 'out';
         // Bộ lọc theo ví giờ cho chọn nhiều ví cùng lúc (mặc định chọn hết = tương đương "Tất Cả")
-        let activeFilterWallets = new Set(wallets.map(w => w.id));
+        let activeFilterWallets = new Set();
         let editingId = null;
 
-        let transactions = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [
-            { id: 1, wallet: 'biz', type: 'out', amount: 99000, cat: 'Chi phí vận hành', date: '2026-07-31', note: 'Xe ôm' },
-            { id: 2, wallet: 'biz', type: 'out', amount: 196000, cat: 'Nguyên vật liệu / Hàng hóa', date: '2026-07-31', note: 'Mua bột' },
-            { id: 3, wallet: 'per', type: 'out', amount: 100000, cat: 'Chi tiêu cá nhân', date: '2026-07-31', note: 'Ăn trưa' },
-            { id: 4, wallet: 'biz', type: 'in',  amount: 500000, cat: 'Doanh thu bán hàng', date: '2026-07-31', note: 'Bán bánh' }
-        ];
+        let transactions = [];
 
         document.getElementById('inp-date').value = new Date().toISOString().split('T')[0];
 
         function saveData() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
             updateDashboard();
             renderTable();
-        }
-
-        function syncToGoogleSheet(payload) {
-            if (typeof GOOGLE_SHEET_URL !== 'undefined' && GOOGLE_SHEET_URL) {
-                fetch(GOOGLE_SHEET_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                }).catch(err => console.error("Lỗi đồng bộ Google Sheets:", err));
-            }
         }
 
         // --- 2. CHART INITIALIZATION ---
@@ -1050,30 +1045,29 @@
             document.getElementById('btn-cancel').style.display = 'none';
         }
 
-        function deleteTx(id) {
+        async function deleteTx(id) {
             if (confirm("⚠️ Bạn có chắc chắn muốn xóa giao dịch này?")) {
-                const targetTx = transactions.find(t => t.id === id);
+                try {
+                    const { error } = await sb.from('fin_transactions').delete().eq('id', id);
+                    if (error) throw error;
+                } catch (err) {
+                    return alert('Lỗi xóa trên Supabase: ' + (err.message || err));
+                }
                 transactions = transactions.filter(t => t.id !== id);
                 saveData();
-
-                // Đồng bộ lệnh xóa lên Google Sheet
-                if (targetTx) {
-                    syncToGoogleSheet({ action: 'delete', id: id });
-                }
             }
         }
 
         // --- 4B. CÔNG NỢ & LÃI ---
-        const DEBT_STORAGE_KEY = 'FINANCE_APP_DEBTS_V1';
         let currentDebtType = 'lend';
         let editingDebtId = null;
 
-        let debts = JSON.parse(localStorage.getItem(DEBT_STORAGE_KEY)) || [];
+        // Danh sách thật lấy từ Supabase lúc khởi động (initApp)
+        let debts = [];
 
         document.getElementById('inp-debt-date').value = new Date().toISOString().split('T')[0];
 
         function saveDebts() {
-            localStorage.setItem(DEBT_STORAGE_KEY, JSON.stringify(debts));
             renderDebts();
         }
 
@@ -1100,7 +1094,7 @@
             return { days, interest: Math.round(interest) };
         }
 
-        function handleSaveDebt(e) {
+        async function handleSaveDebt(e) {
             e.preventDefault();
             const name = document.getElementById('inp-debt-name').value.trim();
             const principal = parseFloat(document.getElementById('inp-debt-principal').value);
@@ -1122,16 +1116,22 @@
                 paidDate: null
             };
 
-            if (editingDebtId) {
-                const index = debts.findIndex(d => d.id === editingDebtId);
-                if (index !== -1) {
-                    debts[index] = { ...debts[index], ...payload };
+            try {
+                if (editingDebtId) {
+                    const { error } = await sb.from('fin_debts').update(payload).eq('id', editingDebtId);
+                    if (error) throw error;
+                    const index = debts.findIndex(d => d.id === editingDebtId);
+                    if (index !== -1) debts[index] = { ...debts[index], ...payload };
+                    alert('Đã cập nhật công nợ!');
+                } else {
+                    payload.id = genId();
+                    const { error } = await sb.from('fin_debts').insert(payload);
+                    if (error) throw error;
+                    debts.unshift(payload);
+                    alert('Đã lưu công nợ mới!');
                 }
-                alert('Đã cập nhật công nợ!');
-            } else {
-                payload.id = Date.now();
-                debts.unshift(payload);
-                alert('Đã lưu công nợ mới!');
+            } catch (err) {
+                return alert('Lỗi lưu công nợ lên Supabase: ' + (err.message || err));
             }
 
             saveDebts();
@@ -1170,25 +1170,38 @@
             document.getElementById('btn-debt-cancel').style.display = 'none';
         }
 
-        function markDebtPaid(id) {
+        async function markDebtPaid(id) {
             const debt = debts.find(d => d.id === id);
             if (!debt) return;
             if (!confirm(`Xác nhận "${debt.name}" đã tất toán khoản này (gốc + lãi)?`)) return;
+            const paidDate = new Date().toISOString().split('T')[0];
+            try {
+                const { error } = await sb.from('fin_debts').update({ paid: true, paidDate }).eq('id', id);
+                if (error) throw error;
+            } catch (err) { return alert('Lỗi cập nhật lên Supabase: ' + (err.message || err)); }
             debt.paid = true;
-            debt.paidDate = new Date().toISOString().split('T')[0];
+            debt.paidDate = paidDate;
             saveDebts();
         }
 
-        function reopenDebt(id) {
+        async function reopenDebt(id) {
             const debt = debts.find(d => d.id === id);
             if (!debt) return;
+            try {
+                const { error } = await sb.from('fin_debts').update({ paid: false, paidDate: null }).eq('id', id);
+                if (error) throw error;
+            } catch (err) { return alert('Lỗi cập nhật lên Supabase: ' + (err.message || err)); }
             debt.paid = false;
             debt.paidDate = null;
             saveDebts();
         }
 
-        function deleteDebt(id) {
+        async function deleteDebt(id) {
             if (confirm("⚠️ Bạn có chắc chắn muốn xóa khoản công nợ này?")) {
+                try {
+                    const { error } = await sb.from('fin_debts').delete().eq('id', id);
+                    if (error) throw error;
+                } catch (err) { return alert('Lỗi xóa trên Supabase: ' + (err.message || err)); }
                 debts = debts.filter(d => d.id !== id);
                 saveDebts();
             }
@@ -1482,44 +1495,53 @@
             `).join('');
         }
 
-        function addWallet() {
+        async function addWallet() {
             const nameInput = document.getElementById('inpNewWalletName');
             const name = nameInput.value.trim();
             if (!name) { alert('Nhập tên ví trước đã!'); return; }
             const id = 'w_' + Date.now();
             const color = WALLET_COLOR_PALETTE[wallets.length % WALLET_COLOR_PALETTE.length];
+            try {
+                const { error } = await sb.from('fin_wallets').insert({ id, name, icon: '💰', colorBg: color.bg, colorFg: color.fg, createdAt: Date.now() });
+                if (error) throw error;
+            } catch (err) { return alert('Lỗi thêm ví lên Supabase: ' + (err.message || err)); }
             wallets.push({ id, name, icon: '💰', color });
-            saveWallets();
             nameInput.value = '';
             activeFilterWallets.add(id);
             refreshAllWalletUI();
             alert('Đã thêm ví "' + name + '"!');
         }
 
-        function renameWallet(id) {
+        async function renameWallet(id) {
             const w = getWallet(id);
             if (!w) return;
             const newName = prompt('Đổi tên ví:', w.name);
             if (newName === null) return;
             const trimmed = newName.trim();
             if (!trimmed) { alert('Tên ví không được để trống!'); return; }
+            try {
+                const { error } = await sb.from('fin_wallets').update({ name: trimmed }).eq('id', id);
+                if (error) throw error;
+            } catch (err) { return alert('Lỗi đổi tên ví lên Supabase: ' + (err.message || err)); }
             w.name = trimmed;
-            saveWallets();
             refreshAllWalletUI();
         }
 
-        function deleteWallet(id) {
+        async function deleteWallet(id) {
             const w = getWallet(id);
             if (!w) return;
             if (wallets.length <= 1) { alert('Phải còn ít nhất 1 ví!'); return; }
             const hasTx = transactions.some(t => t.wallet === id);
             if (hasTx) { alert('Ví "' + w.name + '" vẫn còn giao dịch, không xóa được. Hãy xóa/chuyển hết giao dịch của ví này trước.'); return; }
             if (!confirm('Xóa ví "' + w.name + '"? Thao tác này không xóa được nếu vẫn còn giao dịch.')) return;
+            try {
+                const { error } = await sb.from('fin_wallets').delete().eq('id', id);
+                if (error) throw error;
+            } catch (err) { return alert('Lỗi xóa ví trên Supabase: ' + (err.message || err)); }
             wallets = wallets.filter(x => x.id !== id);
             activeFilterWallets.delete(id);
             if (activeFilterWallets.size === 0) activeFilterWallets.add(wallets[0].id);
             if (currentWallet === id) currentWallet = wallets[0].id;
-            saveWallets();
             refreshAllWalletUI();
         }
 
@@ -1532,7 +1554,7 @@
         }
 
         /* ---- XÓA GIAO DỊCH THEO THÁNG / NĂM ---- */
-        function deleteByMonthYear() {
+        async function deleteByMonthYear() {
             const month = document.getElementById('delMonth').value; // '' hoặc '01'..'12'
             const year = document.getElementById('delYear').value.trim();
             if (!year) { alert('Vui lòng nhập năm!'); return; }
@@ -1541,10 +1563,13 @@
             const toDelete = transactions.filter(t => (t.date || '').startsWith(prefix));
             if (toDelete.length === 0) { alert('Không có giao dịch nào trong ' + label + '.'); return; }
             if (!confirm('Xóa toàn bộ ' + toDelete.length + ' giao dịch trong ' + label + '? Không thể hoàn tác.')) return;
+            try {
+                const { error } = await sb.from('fin_transactions').delete().like('date', prefix + '%');
+                if (error) throw error;
+            } catch (err) { return alert('Lỗi xóa trên Supabase: ' + (err.message || err)); }
             const idsToDelete = new Set(toDelete.map(t => t.id));
             transactions = transactions.filter(t => !idsToDelete.has(t.id));
             saveData();
-            toDelete.forEach(t => syncToGoogleSheet({ action: 'delete', id: t.id }));
             alert('Đã xóa ' + toDelete.length + ' giao dịch trong ' + label + '!');
         }
 
@@ -1561,7 +1586,7 @@
             }
         }
 
-        function handleSaveTx(e) {
+        async function handleSaveTx(e) {
             e.preventDefault();
             const amount = parseFloat(document.getElementById('inp-amount').value);
             const cat = document.getElementById('inp-cat').value;
@@ -1576,26 +1601,29 @@
                 amount: amount,
                 cat: cat,
                 date: date,
-                note: note
+                note: note,
+                updatedAt: Date.now()
             };
 
-            if (editingId) {
-                const index = transactions.findIndex(t => t.id === editingId);
-                if (index !== -1) {
-                    transactions[index] = { ...transactions[index], ...payload };
-                    payload.id = editingId;
-                    payload.action = 'update';
+            try {
+                if (editingId) {
+                    const { error } = await sb.from('fin_transactions').update(payload).eq('id', editingId);
+                    if (error) throw error;
+                    const index = transactions.findIndex(t => t.id === editingId);
+                    if (index !== -1) transactions[index] = { ...transactions[index], ...payload };
+                    alert('Đã cập nhật giao dịch!');
+                } else {
+                    payload.id = genId();
+                    const { error } = await sb.from('fin_transactions').insert(payload);
+                    if (error) throw error;
+                    transactions.unshift(payload);
+                    alert('Đã lưu giao dịch mới!');
                 }
-                alert('Đã cập nhật giao dịch!');
-            } else {
-                payload.id = Date.now();
-                payload.action = 'create';
-                transactions.unshift(payload);
-                alert('Đã lưu giao dịch mới!');
+            } catch (err) {
+                return alert('Lỗi lưu giao dịch lên Supabase: ' + (err.message || err));
             }
 
             saveData();
-            syncToGoogleSheet(payload);
             cancelEdit();
         }
 
@@ -1653,20 +1681,58 @@
             downloadAnchor.remove();
         }
 
-        function confirmReset() {
-            if (confirm("⚠️ Xóa toàn bộ dữ liệu lưu trên máy này?")) {
-                localStorage.removeItem(STORAGE_KEY);
+        async function confirmReset() {
+            if (confirm("⚠️ XÓA TOÀN BỘ giao dịch trên Supabase (áp dụng cho MỌI thiết bị đang dùng chung dữ liệu này, không thể hoàn tác)?")) {
+                try {
+                    const { error } = await sb.from('fin_transactions').delete().not('id', 'is', null);
+                    if (error) throw error;
+                } catch (err) { return alert('Lỗi xóa trên Supabase: ' + (err.message || err)); }
                 transactions = [];
                 saveData();
                 closeSettings();
             }
         }
 
-        // Khởi chạy ban đầu
-        renderWalletFilterChips();
-        renderWalletToggleButtons();
-        renderWalletManageList();
-        saveData();
+        // Khởi chạy ban đầu - tải dữ liệu thật từ Supabase (chạy trên mọi thiết bị đều thấy chung 1 dữ liệu)
+        async function initApp(){
+            const loadingEl = document.getElementById('loadingOverlay');
+            try {
+                const [walletsR, txR, debtsR] = await Promise.all([
+                    sb.from('fin_wallets').select('*').order('createdAt', { ascending: true }),
+                    sb.from('fin_transactions').select('*').order('id', { ascending: false }),
+                    sb.from('fin_debts').select('*').order('id', { ascending: false })
+                ]);
+                if (walletsR.error) throw walletsR.error;
+                if (txR.error) throw txR.error;
+                if (debtsR.error) throw debtsR.error;
+
+                if (!walletsR.data || walletsR.data.length === 0) {
+                    // Lần đầu tiên chạy - chưa có ví nào trên Supabase, tạo sẵn 3 ví mặc định
+                    const seedRows = DEFAULT_WALLETS.map((w, i) => ({ id: w.id, name: w.name, icon: w.icon, colorBg: w.color.bg, colorFg: w.color.fg, createdAt: Date.now() + i }));
+                    const { error: seedErr } = await sb.from('fin_wallets').insert(seedRows);
+                    if (seedErr) throw seedErr;
+                    wallets = DEFAULT_WALLETS.map(w => ({ ...w }));
+                } else {
+                    wallets = walletsR.data.map(walletRowToObj);
+                }
+                transactions = txR.data || [];
+                debts = debtsR.data || [];
+
+                currentWallet = wallets[0].id;
+                activeFilterWallets = new Set(wallets.map(w => w.id));
+
+                renderWalletFilterChips();
+                renderWalletToggleButtons();
+                renderWalletManageList();
+                saveData();
+                renderDebts();
+            } catch (err) {
+                alert('Không tải được dữ liệu từ Supabase: ' + (err.message || err) + '\n\nKiểm tra lại kết nối mạng và cấu hình SUPABASE_URL/SUPABASE_ANON_KEY.');
+            } finally {
+                if (loadingEl) loadingEl.style.display = 'none';
+            }
+        }
+        initApp();
 
         // --- 8. ĐĂNG KÝ SERVICE WORKER (PWA - CÀI ĐẶT & CHẠY OFFLINE) ---
         // Mở link kèm ?resetcache=1 để ép xóa sạch service worker + cache cũ,

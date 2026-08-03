@@ -1,4 +1,4 @@
-const CACHE_NAME = 'thuchi-v2';
+const CACHE_NAME = 'thuchi-v3-supabase';
 const urlsToCache = [
   './',
   './index.html',
@@ -26,8 +26,12 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Chỉ xử lý GET, bỏ qua các request khác (vd. POST đồng bộ Google Sheet)
+  // Chỉ xử lý GET, bỏ qua các request khác (POST/PATCH/DELETE lên Supabase)
   if (event.request.method !== 'GET') return;
+
+  // Không cache dữ liệu động từ Supabase - luôn lấy bản mới nhất từ mạng,
+  // để mở app trên nhiều thiết bị đều thấy đúng dữ liệu hiện tại
+  if (event.request.url.indexOf('supabase.co') !== -1) return;
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {

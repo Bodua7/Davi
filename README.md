@@ -1,5 +1,21 @@
 # Sổ Thu Chi Đa Ví - kèm Cổng Ngầm vào Quản Lý Quán Ăn
 
+## ⚠️ Đã chuyển sang Supabase (đọc trước)
+
+App này giờ lưu dữ liệu (ví, giao dịch, công nợ) trên **Supabase** thay vì
+localStorage + Google Sheet như trước - mở app trên điện thoại/máy tính khác
+nhau đều thấy chung 1 dữ liệu, cập nhật tức thì.
+
+- Dùng **chung 1 project Supabase** với app Quán Ăn (đã điền sẵn URL + anon
+  key trong `index.html`).
+- Trước khi dùng, phải chạy file `chema_supabase_vithuchi.sql` trong SQL
+  Editor của project đó (tạo 3 bảng `fin_wallets`, `fin_transactions`,
+  `fin_debts`) - xem hướng dẫn ngay đầu file SQL.
+- File `Code_ViThuChi.gs` (Apps Script cũ) **không còn cần dùng nữa**, có thể
+  xóa khỏi Google Apps Script và khỏi repo GitHub nếu muốn dọn dẹp.
+- Nếu mất mạng, app sẽ báo lỗi không tải được dữ liệu (không còn hoạt động
+  offline bằng dữ liệu cũ trên máy như bản trước).
+
 App thu chi 2 ví (Kinh Doanh / Cá Nhân) như cũ, có thêm **cổng ngầm** để chủ
 quán từ app Ví này mở thẳng sang quản lý quán ăn (quanan-pwa), giống hệt cách
 nhân viên đăng nhập nhưng không lộ ra ngoài giao diện.
