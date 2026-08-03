@@ -625,6 +625,16 @@
 
             <!-- DASHBOARD METRICS -->
             <div class="card">
+                <div class="card-title" style="margin-bottom: 10px;">📊 Báo Cáo Thu Chi</div>
+                <div class="filter-tabs" id="periodFilterTabs" style="margin-bottom: 10px;">
+                    <button type="button" class="tab-item active" data-period="all" onclick="setDashboardPeriod('all')">Tất Cả</button>
+                    <button type="button" class="tab-item" data-period="day" onclick="setDashboardPeriod('day')">📅 Ngày</button>
+                    <button type="button" class="tab-item" data-period="week" onclick="setDashboardPeriod('week')">🗓️ Tuần</button>
+                    <button type="button" class="tab-item" data-period="month" onclick="setDashboardPeriod('month')">📆 Tháng</button>
+                </div>
+                <div class="form-group" id="periodDatePickerWrap" style="display:none; margin-bottom: 10px;">
+                    <input type="date" id="inp-period-date" class="form-control" onchange="onPeriodDateChange()">
+                </div>
                 <div class="metrics-grid">
                     <div class="metric-box">
                         <div class="metric-title">SỐ DƯ KHẢ DỤNG</div>
@@ -911,6 +921,11 @@
         let activeFilterWallets = new Set();
         let editingId = null;
 
+        // Bộ lọc kỳ báo cáo cho Dashboard: 'all' | 'day' | 'week' | 'month'
+        let dashboardPeriod = 'all';
+        // Ngày mốc để tính "ngày/tuần/tháng" (mặc định hôm nay), cho phép chọn xem báo cáo của ngày/tuần/tháng khác
+        let periodRefDate = new Date().toISOString().split('T')[0];
+
         let transactions = [];
 
         document.getElementById('inp-date').value = new Date().toISOString().split('T')[0];
@@ -939,6 +954,61 @@
         });
 
         // --- 3. DASHBOARD & CHART UPDATE ---
+
+        // Chọn kỳ xem báo cáo: Tất Cả / Ngày / Tuần / Tháng
+        function setDashboardPeriod(period) {
+            dashboardPeriod = period;
+            document.querySelectorAll('#periodFilterTabs .tab-item').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.period === period);
+            });
+            const pickerWrap = document.getElementById('periodDatePickerWrap');
+            const pickerInput = document.getElementById('inp-period-date');
+            if (period === 'all') {
+                pickerWrap.style.display = 'none';
+            } else {
+                pickerWrap.style.display = 'block';
+                if (!pickerInput.value) pickerInput.value = periodRefDate;
+            }
+            updateDashboard();
+        }
+
+        function onPeriodDateChange() {
+            const v = document.getElementById('inp-period-date').value;
+            if (v) periodRefDate = v;
+            updateDashboard();
+        }
+
+        // Trả về thứ Hai của tuần chứa "date" (tuần bắt đầu từ Thứ Hai)
+        function getMondayOf(date) {
+            const d = new Date(date);
+            d.setHours(0, 0, 0, 0);
+            const day = d.getDay(); // 0 = CN ... 6 = T7
+            const diff = (day === 0 ? 6 : day - 1);
+            d.setDate(d.getDate() - diff);
+            return d;
+        }
+
+        function isDateInPeriod(dateStr, period) {
+            if (period === 'all' || !dateStr) return true;
+            const d = new Date(dateStr + 'T00:00:00');
+            const ref = new Date(periodRefDate + 'T00:00:00');
+
+            if (period === 'day') {
+                return dateStr === periodRefDate;
+            }
+            if (period === 'week') {
+                const monday = getMondayOf(ref);
+                const sunday = new Date(monday);
+                sunday.setDate(monday.getDate() + 6);
+                sunday.setHours(23, 59, 59, 999);
+                return d >= monday && d <= sunday;
+            }
+            if (period === 'month') {
+                return d.getFullYear() === ref.getFullYear() && d.getMonth() === ref.getMonth();
+            }
+            return true;
+        }
+
         function updateDashboard() {
             let totalIncome = 0;
             let totalExpense = 0;
@@ -946,6 +1016,7 @@
 
             transactions.forEach(t => {
                 if (!activeFilterWallets.has(t.wallet)) return;
+                if (!isDateInPeriod(t.date, dashboardPeriod)) return;
                 if (t.type === 'in') {
                     totalIncome += t.amount;
                 } else {
