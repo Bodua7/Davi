@@ -587,6 +587,14 @@
 
         .btn-paid { background: #dcfce7; color: #15803d; }
         .btn-paid:hover { background: #22c55e; color: white; }
+
+        .btn-pay-principal { background: #dbeafe; color: #1d4ed8; }
+        .btn-pay-principal:hover { background: #3b82f6; color: white; }
+
+        .btn-pay-interest { background: #fef3c7; color: #b45309; }
+        .btn-pay-interest:hover { background: #f59e0b; color: white; }
+
+        .debt-paid-line { font-size: 10px; color: #16a34a; line-height: 1.5; }
     </style>
 </head>
 <body>
@@ -698,8 +706,22 @@
                             <label>Danh mục</label>
                             <select id="inp-cat" class="form-control">
                                 <option>Nguyên vật liệu / Hàng hóa</option>
-                                <option>Chi phí vận hành</option>
-                                <option>Chi tiêu cá nhân</option>
+                                <option>Lương nhân viên</option>
+                                <option>Mặt bằng / Thuê nhà</option>
+                                <option>Điện nước / Internet</option>
+                                <option>Marketing / Quảng cáo</option>
+                                <option>Sửa chữa / Bảo trì</option>
+                                <option>Vận chuyển / Giao hàng</option>
+                                <option>Thuế / Phí</option>
+                                <option>Chi phí vận hành khác</option>
+                                <option>Ăn uống</option>
+                                <option>Di chuyển / Xăng xe</option>
+                                <option>Mua sắm</option>
+                                <option>Y tế / Sức khỏe</option>
+                                <option>Giáo dục</option>
+                                <option>Chi tiêu cá nhân khác</option>
+                                <option>Trả lãi vay</option>
+                                <option>Khác</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -1185,7 +1207,22 @@
             const days = daysBetween(debt.date, endDate);
             const months = days / 30;
             const interest = debt.principal * (debt.rate / 100) * months;
-            return { days, interest: Math.round(interest) };
+            const interestRounded = Math.round(interest);
+
+            const paidPrincipal = debt.paidPrincipal || 0;
+            const paidInterest = debt.paidInterest || 0;
+            const remainingPrincipal = Math.max(0, debt.principal - paidPrincipal);
+            const remainingInterest = Math.max(0, interestRounded - paidInterest);
+
+            return {
+                days,
+                interest: interestRounded,
+                paidPrincipal,
+                paidInterest,
+                remainingPrincipal,
+                remainingInterest,
+                remainingTotal: remainingPrincipal + remainingInterest
+            };
         }
 
         async function handleSaveDebt(e) {
@@ -1219,6 +1256,8 @@
                     alert('Đã cập nhật công nợ!');
                 } else {
                     payload.id = genId();
+                    payload.paidPrincipal = 0;
+                    payload.paidInterest = 0;
                     const { error } = await sb.from('fin_debts').insert(payload);
                     if (error) throw error;
                     debts.unshift(payload);
@@ -1264,17 +1303,72 @@
             document.getElementById('btn-debt-cancel').style.display = 'none';
         }
 
+        // Trả gốc: nhập số tiền trả (có thể trả từng phần, nhiều lần)
+        async function payDebtPrincipal(id) {
+            const debt = debts.find(d => d.id === id);
+            if (!debt) return;
+            const { remainingPrincipal } = computeDebtInterest(debt);
+            if (remainingPrincipal <= 0) return alert('Khoản này đã trả hết gốc rồi!');
+
+            const input = prompt(`Nhập số tiền trả GỐC cho "${debt.name}" (còn lại: ${remainingPrincipal.toLocaleString('vi-VN')} đ):`, remainingPrincipal);
+            if (input === null) return;
+            const amount = parseFloat(input);
+            if (!amount || amount <= 0) return alert('Số tiền không hợp lệ!');
+            const applied = Math.min(amount, remainingPrincipal);
+
+            const newPaidPrincipal = (debt.paidPrincipal || 0) + applied;
+            await applyDebtPayment(debt, { paidPrincipal: newPaidPrincipal });
+        }
+
+        // Trả lãi: nhập số tiền trả (có thể trả từng phần, nhiều lần)
+        async function payDebtInterest(id) {
+            const debt = debts.find(d => d.id === id);
+            if (!debt) return;
+            const { remainingInterest } = computeDebtInterest(debt);
+            if (remainingInterest <= 0) return alert('Khoản này chưa phát sinh lãi hoặc đã trả hết lãi!');
+
+            const input = prompt(`Nhập số tiền trả LÃI cho "${debt.name}" (còn lại: ${remainingInterest.toLocaleString('vi-VN')} đ):`, remainingInterest);
+            if (input === null) return;
+            const amount = parseFloat(input);
+            if (!amount || amount <= 0) return alert('Số tiền không hợp lệ!');
+            const applied = Math.min(amount, remainingInterest);
+
+            const newPaidInterest = (debt.paidInterest || 0) + applied;
+            await applyDebtPayment(debt, { paidInterest: newPaidInterest });
+        }
+
+        // Ghi nhận thanh toán (gốc hoặc lãi) lên Supabase, tự động tất toán nếu đã trả hết cả 2
+        async function applyDebtPayment(debt, changes) {
+            const updated = { ...debt, ...changes };
+            const { remainingPrincipal, remainingInterest } = computeDebtInterest(updated);
+
+            const payload = { ...changes };
+            if (remainingPrincipal <= 0 && remainingInterest <= 0) {
+                payload.paid = true;
+                payload.paidDate = new Date().toISOString().split('T')[0];
+            }
+
+            try {
+                const { error } = await sb.from('fin_debts').update(payload).eq('id', debt.id);
+                if (error) throw error;
+            } catch (err) { return alert('Lỗi cập nhật lên Supabase: ' + (err.message || err)); }
+
+            Object.assign(debt, payload);
+            saveDebts();
+        }
+
         async function markDebtPaid(id) {
             const debt = debts.find(d => d.id === id);
             if (!debt) return;
-            if (!confirm(`Xác nhận "${debt.name}" đã tất toán khoản này (gốc + lãi)?`)) return;
+            if (!confirm(`Xác nhận "${debt.name}" đã tất toán toàn bộ khoản này (gốc + lãi còn lại)?`)) return;
+            const { interest } = computeDebtInterest(debt);
             const paidDate = new Date().toISOString().split('T')[0];
+            const payload = { paid: true, paidDate, paidPrincipal: debt.principal, paidInterest: interest };
             try {
-                const { error } = await sb.from('fin_debts').update({ paid: true, paidDate }).eq('id', id);
+                const { error } = await sb.from('fin_debts').update(payload).eq('id', id);
                 if (error) throw error;
             } catch (err) { return alert('Lỗi cập nhật lên Supabase: ' + (err.message || err)); }
-            debt.paid = true;
-            debt.paidDate = paidDate;
+            Object.assign(debt, payload);
             saveDebts();
         }
 
@@ -1316,16 +1410,18 @@
             const sorted = [...debts].sort((a, b) => (a.paid === b.paid ? b.id - a.id : (a.paid ? 1 : -1)));
 
             sorted.forEach(debt => {
-                const { days, interest } = computeDebtInterest(debt);
+                const { days, interest, paidPrincipal, paidInterest, remainingPrincipal, remainingInterest, remainingTotal } = computeDebtInterest(debt);
                 const total = debt.principal + interest;
 
                 if (!debt.paid) {
-                    if (debt.type === 'lend') totalLend += total;
-                    else totalBorrow += total;
+                    if (debt.type === 'lend') totalLend += remainingTotal;
+                    else totalBorrow += remainingTotal;
                 }
 
                 const badgeClass = debt.type === 'lend' ? 'badge-lend' : 'badge-borrow';
                 const badgeText = debt.type === 'lend' ? '📤 Cho Vay' : '📥 Đi Vay';
+
+                const hasPaidAnything = paidPrincipal > 0 || paidInterest > 0;
 
                 const card = document.createElement('div');
                 card.className = 'debt-card' + (debt.paid ? ' is-paid' : '');
@@ -1337,11 +1433,17 @@
                     <div class="debt-line">Gốc: ${debt.principal.toLocaleString('vi-VN')} đ • Lãi suất: ${debt.rate}%/tháng</div>
                     <div class="debt-line">Từ ngày: ${debt.date} • Số ngày tính lãi: ${days} ngày</div>
                     <div class="debt-line">Tiền lãi phát sinh: ${interest.toLocaleString('vi-VN')} đ${debt.note ? ' • ' + debt.note : ''}</div>
-                    <div class="debt-total">Tổng ${debt.type === 'lend' ? 'phải thu' : 'phải trả'}: ${total.toLocaleString('vi-VN')} đ</div>
+                    ${hasPaidAnything ? `<div class="debt-paid-line">Đã trả gốc: ${paidPrincipal.toLocaleString('vi-VN')} đ • Đã trả lãi: ${paidInterest.toLocaleString('vi-VN')} đ</div>` : ''}
+                    <div class="debt-total">
+                        ${debt.paid ? 'Đã tất toán' : `Còn ${debt.type === 'lend' ? 'phải thu' : 'phải trả'}: ${remainingTotal.toLocaleString('vi-VN')} đ`}
+                        ${!debt.paid ? `<span style="font-weight:400;color:#94a3b8;font-size:10px;"> (gốc ${remainingPrincipal.toLocaleString('vi-VN')} đ + lãi ${remainingInterest.toLocaleString('vi-VN')} đ)</span>` : ''}
+                    </div>
                     <div class="debt-actions">
                         ${debt.paid
                             ? `<button class="btn-act-tbl btn-edit" onclick="reopenDebt(${debt.id})">Mở Lại</button>`
-                            : `<button class="btn-act-tbl btn-paid" onclick="markDebtPaid(${debt.id})">Đã Trả</button>`}
+                            : `<button class="btn-act-tbl btn-pay-principal" onclick="payDebtPrincipal(${debt.id})">Trả Gốc</button>
+                               <button class="btn-act-tbl btn-pay-interest" onclick="payDebtInterest(${debt.id})">Trả Lãi</button>
+                               <button class="btn-act-tbl btn-paid" onclick="markDebtPaid(${debt.id})">Tất Toán</button>`}
                         <button class="btn-act-tbl btn-edit" onclick="editDebt(${debt.id})">Sửa</button>
                         <button class="btn-act-tbl btn-del" onclick="deleteDebt(${debt.id})">Xóa</button>
                     </div>
@@ -1674,9 +1776,33 @@
 
             const catSelect = document.getElementById('inp-cat');
             if (type === 'in') {
-                catSelect.innerHTML = `<option>Doanh thu bán hàng</option><option>Thu nhập khác</option><option>Thu hồi nợ</option>`;
+                catSelect.innerHTML = `
+                    <option>Doanh thu bán hàng</option>
+                    <option>Doanh thu giao hàng / online</option>
+                    <option>Thu hồi nợ</option>
+                    <option>Lãi cho vay</option>
+                    <option>Lương / Thưởng</option>
+                    <option>Đầu tư / Lãi ngân hàng</option>
+                    <option>Thu nhập khác</option>`;
             } else {
-                catSelect.innerHTML = `<option>Nguyên vật liệu / Hàng hóa</option><option>Chi phí vận hành</option><option>Chi tiêu cá nhân</option>`;
+                catSelect.innerHTML = `
+                    <option>Nguyên vật liệu / Hàng hóa</option>
+                    <option>Lương nhân viên</option>
+                    <option>Mặt bằng / Thuê nhà</option>
+                    <option>Điện nước / Internet</option>
+                    <option>Marketing / Quảng cáo</option>
+                    <option>Sửa chữa / Bảo trì</option>
+                    <option>Vận chuyển / Giao hàng</option>
+                    <option>Thuế / Phí</option>
+                    <option>Chi phí vận hành khác</option>
+                    <option>Ăn uống</option>
+                    <option>Di chuyển / Xăng xe</option>
+                    <option>Mua sắm</option>
+                    <option>Y tế / Sức khỏe</option>
+                    <option>Giáo dục</option>
+                    <option>Chi tiêu cá nhân khác</option>
+                    <option>Trả lãi vay</option>
+                    <option>Khác</option>`;
             }
         }
 

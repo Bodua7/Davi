@@ -1,23 +1,31 @@
 {
-  "name": "Sổ Quản Lý Thu Chi Đa Ví",
-  "short_name": "Thu Chi Đa Ví",
-  "description": "Phân luồng dòng tiền Kinh Doanh & Cá Nhân chuyên nghiệp",
-  "start_url": "./index.html",
+  "name": "Quán Ăn - Gọi Món & Quản Lý",
+  "short_name": "Quán Ăn",
+  "description": "Gọi món qua QR và quản lý quán ăn",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#0f172a",
+  "orientation": "portrait",
+  "background_color": "#312e81",
   "theme_color": "#312e81",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/2953/2953361.png",
+      "src": "./icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/2953/2953361.png",
+      "src": "./icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

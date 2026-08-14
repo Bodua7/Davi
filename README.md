@@ -11,6 +11,10 @@ nhau đều thấy chung 1 dữ liệu, cập nhật tức thì.
 - Trước khi dùng, phải chạy file `chema_supabase_vithuchi.sql` trong SQL
   Editor của project đó (tạo 3 bảng `fin_wallets`, `fin_transactions`,
   `fin_debts`) - xem hướng dẫn ngay đầu file SQL.
+- **Nếu đã chạy file SQL này từ trước** (đã có sẵn bảng `fin_debts`): chạy lại
+  toàn bộ file lần nữa là an toàn - 2 dòng `alter table ... add column if not
+  exists "paidPrincipal" ...` / `"paidInterest" ...` ở cuối sẽ tự thêm 2 cột
+  mới để hỗ trợ trả gốc/lãi riêng, không ảnh hưởng dữ liệu công nợ cũ.
 - File `Code_ViThuChi.gs` (Apps Script cũ) **không còn cần dùng nữa**, có thể
   xóa khỏi Google Apps Script và khỏi repo GitHub nếu muốn dọn dẹp.
 - Nếu mất mạng, app sẽ báo lỗi không tải được dữ liệu (không còn hoạt động
