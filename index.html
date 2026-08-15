@@ -698,7 +698,7 @@
 
                     <div class="form-group">
                         <label>Số tiền (VNĐ)</label>
-                        <input type="number" id="inp-amount" class="form-control" placeholder="Ví dụ: 250000" required>
+                        <input type="text" inputmode="numeric" id="inp-amount" class="form-control" placeholder="Ví dụ: 250.000" oninput="formatVNDInput(this)" required>
                     </div>
 
                     <div class="form-row">
@@ -788,7 +788,7 @@
                         </div>
                         <div class="form-group">
                             <label>Số tiền gốc (VNĐ)</label>
-                            <input type="number" id="inp-debt-principal" class="form-control" placeholder="VD: 5000000" required>
+                            <input type="text" inputmode="numeric" id="inp-debt-principal" class="form-control" placeholder="VD: 5.000.000" oninput="formatVNDInput(this)" required>
                         </div>
                     </div>
 
@@ -946,6 +946,31 @@
         const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         // Sinh ID duy nhất (dùng cho giao dịch/công nợ), tránh trùng khi 2 máy cùng lưu gần như cùng lúc
         function genId(){ return Date.now() * 1000 + Math.floor(Math.random() * 1000); }
+
+        // --- 0B. FORMAT SỐ TIỀN CÓ DẤU PHÂN CÁCH (nhập vào tự thêm dấu chấm) ---
+        function parseVND(str) {
+            if (str === null || str === undefined) return NaN;
+            const digits = String(str).replace(/[^\d]/g, '');
+            return digits === '' ? NaN : parseInt(digits, 10);
+        }
+
+        function setVNDValue(elId, num) {
+            const el = document.getElementById(elId);
+            if (!el) return;
+            if (num === '' || num === null || num === undefined || isNaN(num)) {
+                el.value = '';
+            } else {
+                el.value = Number(num).toLocaleString('vi-VN');
+            }
+        }
+
+        function formatVNDInput(el) {
+            const cursorFromEnd = el.value.length - el.selectionEnd;
+            const digits = el.value.replace(/[^\d]/g, '');
+            el.value = digits === '' ? '' : parseInt(digits, 10).toLocaleString('vi-VN');
+            const newPos = Math.max(0, el.value.length - cursorFromEnd);
+            el.setSelectionRange(newPos, newPos);
+        }
 
         // --- 1. STATE INITIALIZATION (dữ liệu lấy từ Supabase, không còn dùng localStorage) ---
 
@@ -1144,7 +1169,7 @@
             if (!tx) return;
 
             editingId = id;
-            document.getElementById('inp-amount').value = tx.amount;
+            setVNDValue('inp-amount', tx.amount);
             document.getElementById('inp-date').value = tx.date || new Date().toISOString().split('T')[0];
             document.getElementById('inp-note').value = tx.note || '';
             
@@ -1237,7 +1262,7 @@
         async function handleSaveDebt(e) {
             e.preventDefault();
             const name = document.getElementById('inp-debt-name').value.trim();
-            const principal = parseFloat(document.getElementById('inp-debt-principal').value);
+            const principal = parseVND(document.getElementById('inp-debt-principal').value);
             const rate = parseFloat(document.getElementById('inp-debt-rate').value) || 0;
             const date = document.getElementById('inp-debt-date').value;
             const note = document.getElementById('inp-debt-note').value;
@@ -1286,7 +1311,7 @@
 
             editingDebtId = id;
             document.getElementById('inp-debt-name').value = debt.name;
-            document.getElementById('inp-debt-principal').value = debt.principal;
+            setVNDValue('inp-debt-principal', debt.principal);
             document.getElementById('inp-debt-rate').value = debt.rate;
             document.getElementById('inp-debt-date').value = debt.date;
             document.getElementById('inp-debt-note').value = debt.note || '';
@@ -1554,7 +1579,7 @@
                 const finalAmount = extractFinalAmount(ret.data.text);
 
                 if (finalAmount > 0) {
-                    document.getElementById('inp-amount').value = finalAmount;
+                    setVNDValue('inp-amount', finalAmount);
                     document.getElementById('inp-note').value = "Scan Bill OCR";
                     alert(`📷 OCR thành công!\nĐã trích xuất số tiền: ${finalAmount.toLocaleString('vi-VN')} đ`);
                 } else {
@@ -1630,7 +1655,7 @@
             else if (matchTrieu) amount = parseInt(matchTrieu[1]) * 1000000;
             else if (matchNum) amount = parseInt(matchNum[1]);
 
-            if (amount > 0) document.getElementById('inp-amount').value = amount;
+            if (amount > 0) setVNDValue('inp-amount', amount);
             document.getElementById('inp-note').value = text;
         }
 
@@ -1831,7 +1856,7 @@
 
         async function handleSaveTx(e) {
             e.preventDefault();
-            const amount = parseFloat(document.getElementById('inp-amount').value);
+            const amount = parseVND(document.getElementById('inp-amount').value);
             const cat = document.getElementById('inp-cat').value;
             const date = document.getElementById('inp-date').value;
             const note = document.getElementById('inp-note').value;
