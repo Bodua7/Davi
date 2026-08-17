@@ -1,9 +1,14 @@
-/* Service worker cho app Quán Ăn.
-   Đổi CACHE_NAME (vd v2, v3...) mỗi khi muốn ép người dùng cũ tải bản mới. */
-const CACHE_NAME = 'quanan-cache-v2';
+/* Service worker cho app Sổ Thu Chi Đa Ví.
+   Đổi CACHE_NAME (vd v2, v3...) mỗi khi muốn ép người dùng cũ tải bản mới -
+   bản này tăng lên v6 vì: khóa nút Lưu chống bấm trùng, validate lãi suất
+   công nợ, debounce ô tìm kiếm, sửa manifest.json/theme-color bị sai (copy
+   nhầm từ app Quán Ăn), thêm banner báo mất mạng - cần ép tải lại bản mới. */
+const CACHE_NAME = 'sothuchi-cache-v6';
 const CORE_ASSETS = [
   './',
   './index.html',
+  './style.css',
+  './app.js',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -43,9 +48,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // App shell (HTML): ưu tiên lấy bản mới nhất từ mạng trước, cache chỉ là dự phòng
-  // khi mất mạng - tránh tình trạng bị kẹt bản cũ khi đã sửa code.
-  if (req.mode === 'navigate' || url.pathname.endsWith('.html')) {
+  // App shell (HTML/CSS/JS): ưu tiên lấy bản mới nhất từ mạng trước, cache chỉ
+  // là dự phòng khi mất mạng - tránh tình trạng bị kẹt bản cũ khi đã sửa code
+  // (style.css/app.js chứa toàn bộ logic nên quan trọng như index.html).
+  if (req.mode === 'navigate' || url.pathname.endsWith('.html') || url.pathname.endsWith('.css') || url.pathname.endsWith('.js')) {
     event.respondWith(
       fetch(req, { cache: 'no-store' })
         .then((res) => {

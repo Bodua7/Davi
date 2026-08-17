@@ -1,13 +1,13 @@
 {
-  "name": "Quán Ăn - Gọi Món & Quản Lý",
-  "short_name": "Quán Ăn",
-  "description": "Gọi món qua QR và quản lý quán ăn",
+  "name": "Sổ Thu Chi Đa Ví",
+  "short_name": "Thu Chi",
+  "description": "Quản lý thu chi nhiều ví, theo dõi công nợ",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#312e81",
-  "theme_color": "#312e81",
+  "background_color": "#f1f5f9",
+  "theme_color": "#f1f5f9",
   "icons": [
     {
       "src": "./icons/icon-192.png",
